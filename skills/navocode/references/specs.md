@@ -7,7 +7,7 @@ Top-level fields are required. Collections can be empty while the design is bein
 - `groups`: architectural purpose, summary, `componentIds`, `decisionIds`, and changed `paths`.
 - `components`: stable `id`, `name`, and prose for `current`, `intended`, `observed` responsibilities.
 - `relations`: stable ID, component `from`/`to`, meaningful label, and `state` (`current`, `intended`, `both`).
-- `decisions`: title, choice, alternatives, consequences, `status` (`proposed`, `accepted`), `provenance` (`agent`, `human`), and evidence IDs.
+- `decisions`: title, choice, alternatives, consequences, `status` (`proposed`, `accepted`), `provenance` (`agent`, `human`), evidence IDs, and optional `category` (see [engineer decisions](decisions.md)).
 - `evidence`: claim, `kind` (`source`, `test`, `inference`), `status` (`supported`, `unverified`, `failed`), detail, paths, and source digest.
 - `acceptanceCriteria`, `nonGoals`, `unknowns`: human-readable statements.
 - `supportingChanges`: `{path, reason}` for changes that do not warrant their own architectural group.

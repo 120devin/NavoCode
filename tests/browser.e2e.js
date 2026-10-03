@@ -1,9 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
-import { startServer, sessionRequest } from '../src/server.js';
-import { fixture } from './helpers.js';
-import { jsonWrite } from '../src/core.js';
+import { startServer, sessionRequest, fixture, jsonWrite } from './helpers.js';
 import { join } from 'node:path';
 
 test('browser author: explore, send feedback, receive agent revision, accept, request implementation', async t => {
@@ -14,7 +12,14 @@ test('browser author: explore, send feedback, receive agent revision, accept, re
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(session.url); await page.getByRole('heading', { name: f.spec.title }).waitFor();
+  assert.equal(await page.locator('#decisions').evaluate(n => n === document.querySelector('#content').firstElementChild), true);
+  await page.getByRole('heading', { name: 'Assurance', exact: true }).waitFor();
+  assert.equal(await page.locator('[role=tab]').count(), 0);
+  await page.getByText(f.spec.components[0].current, { exact: true }).waitFor();
+  await page.getByText(f.spec.components[0].intended, { exact: true }).waitFor();
+  await page.screenshot({ path: '/tmp/navocode-review-preview.png' });
   await page.getByRole('button', { name: 'Inspect Billing service' }).click();
+  await page.getByText(f.spec.components[0].intended, { exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Billing service', exact: true }).waitFor();
   await page.getByLabel('Describe a question or architectural change').fill('Keep eligibility in authorization and charging in billing.');
   await page.getByRole('button', { name: 'Suggest change', exact: true }).click();
@@ -24,9 +29,13 @@ test('browser author: explore, send feedback, receive agent revision, accept, re
   await sessionRequest(sessionPath, '/api/ack', { id: event.id, message: 'Billing now delegates eligibility to authorization.' });
   await page.getByText('Billing now delegates eligibility to authorization.', { exact: true }).waitFor();
   await page.getByText(f.spec.components[2].intended, { exact: true }).first().waitFor();
+  f.spec.decisions[0].status = 'proposed'; f.spec.decisions[0].provenance = 'agent'; jsonWrite(f.path, f.spec);
+  await page.waitForFunction(() => document.querySelector('[data-action=implement]').disabled);
   await page.getByRole('button', { name: 'Accept design', exact: true }).click();
   const accepted = (await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0]; assert.equal(accepted.action, 'accept');
+  f.spec.decisions[0].status = 'accepted'; f.spec.decisions[0].provenance = 'human'; jsonWrite(f.path, f.spec);
   await sessionRequest(sessionPath, '/api/ack', { id: accepted.id, message: 'Design accepted.' });
+  await page.waitForFunction(() => !document.querySelector('[data-action=implement]').disabled);
   await page.getByRole('button', { name: 'Implement accepted design', exact: true }).click();
   assert.equal((await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0].action, 'implement');
   await page.screenshot({ path: '/tmp/navocode-author-test.png', fullPage: true });
@@ -42,9 +51,9 @@ test('browser reviewer: compare edits, publish intent, no direct implementation 
   await page.goto(session.url); await page.getByRole('heading', { name: f.spec.title }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Implement accepted design' }).count(), 0);
   f.spec.decisions[0].choice = 'A dedicated boundary owns policy <img src=x onerror=alert(1)>.'; jsonWrite(f.path, f.spec);
-  await page.getByRole('button', { name: 'Proposed edits' }).click();
-  await page.getByText(f.spec.decisions[0].choice, { exact: true }).waitFor();
-  assert.equal(await page.locator('img').count(), 0);
+  await page.getByRole('link', { name: 'Proposed edits' }).click();
+  await page.getByText(f.spec.decisions[0].choice, { exact: true }).first().waitFor();
+  assert.equal(await page.locator('#content img').count(), 0);
   await page.getByRole('button', { name: 'Publish proposal' }).click();
   assert.equal((await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0].action, 'publish');
   await page.setViewportSize({ width: 390, height: 844 });

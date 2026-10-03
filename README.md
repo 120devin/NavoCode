@@ -1,19 +1,21 @@
 # NavoCode
 
+<img src="ui/logo.png" alt="NavoCode logo" width="160">
+
 **The human interface to an AI-maintained codebase.**
 
 Design, understand, change, and review software through an interactive architecture workspace. Your coding assistant reads and modifies the code underneath. Humans work with responsibilities, contracts, decisions, and tradeoffs instead of raw diffs.
 
-NavoCode **0.1.0** includes a working CLI, local browser UI, portable assistant skill, Claude Code plugin, and GitHub review proposals. It has no runtime npm dependencies, model API calls, account, or hosted database. Your existing assistant does the reasoning.
+NavoCode **0.2.0** includes a working CLI, local browser UI, portable assistant skill, Claude Code plugin, and GitHub review proposals. Its backend uses only the Python standard library and has no runtime package dependencies, model API calls, account, or hosted database. Your existing assistant does the reasoning.
 
 ## Install
 
-You need **Node.js 20+** and **Git**. Reviewing or publishing GitHub proposals also requires the [GitHub CLI](https://cli.github.com/) authenticated with access to the repository (`gh auth login`).
+You need **Python 3.10+** and **Git**. Reviewing or publishing GitHub proposals also requires the [GitHub CLI](https://cli.github.com/) authenticated with access to the repository (`gh auth login`).
 
 From a checkout of this repository, install the skill into the project you want to work on:
 
 ```sh
-node bin/navocode.js install --host codex --project /path/to/your-project
+python3 bin/navocode.py install --host codex --project /path/to/your-project
 ```
 
 Replace `codex` with `claude`, `cursor`, or `copilot`. The installer copies a self-contained skill and runtime into the project. It does not require a global CLI installation or modify your existing assistant instructions. Start a new assistant session after installation.
@@ -28,7 +30,7 @@ Replace `codex` with `claude`, `cursor`, or `copilot`. The installer copies a se
 The project skill contains the CLI, UI, schema, and workflow instructions. You can commit that directory to share the same version with your team. Reinstallation and uninstall refuse to overwrite locally edited skill files.
 
 ```sh
-node bin/navocode.js uninstall --host codex --project /path/to/your-project
+python3 bin/navocode.py uninstall --host codex --project /path/to/your-project
 ```
 
 ### Native Claude Code plugin
@@ -41,9 +43,9 @@ claude --plugin-dir /absolute/path/to/NavoCode
 
 Then invoke `/navocode:navocode` with your authoring request or PR URL. The repository also contains a Claude marketplace manifest for distribution. No MCP server is required.
 
-### Optional global CLI
+### Optional npm compatibility CLI
 
-From this checkout:
+With Node.js 20+ and Python installed, from this checkout:
 
 ```sh
 npm install -g .
@@ -58,11 +60,12 @@ Tell your assistant:
 
 > Use NavoCode to design delegated billing ownership. Show responsibilities, contracts, and migration choices before implementing.
 
-The agent inspects the project, generates structured specs, and opens a **local HTML/CSS/JavaScript workspace in your browser**. The workspace shows:
+The agent inspects the project, generates structured specs, and opens a **local HTML/CSS/JavaScript workspace in your browser**. The workspace shows the complete review on one page, with a persistent agent conversation alongside it:
 
 - A whole-change map grouped by architectural purpose.
 - Before-and-after responsibility diagrams and connections.
-- Decisions, alternatives, consequences, and acceptance criteria.
+- Engineer decisions first: boundaries, data ownership, contracts, security, failure behavior, rollout, operations, and consequential cost choices.
+- Alternatives, consequences, acceptance criteria, and explicit human acceptance.
 - Observed implementation, evidence, and unresolved questions.
 - A feedback area connected to your active assistant.
 
@@ -70,7 +73,7 @@ Select a component or decision and suggest a change:
 
 > Billing should own eligibility policy. Account management should only expose ownership facts. Explain the effect on the migration.
 
-Your agent receives the feedback through the CLI, updates the specs, and explains the result in the same UI. You can ask questions, accept the design, and request implementation there.
+Your agent receives the feedback through the CLI, updates the specs, and explains the result in the same UI. You can ask questions, accept the design, and request implementation there. Implementation stays blocked while recorded architectural decisions lack human acceptance. The agent handles local coding details within the accepted constraints.
 
 The agent then updates source code, runs checks, and reconciles the observed implementation with the accepted architecture. Code and specs under `.navocode/changes/` are committed and pushed together through the assistant's existing Git tools and your authorization.
 
@@ -102,7 +105,7 @@ GitHub displays the comment, architecture summary, and Mermaid previews. The ful
 ## Prefer NavoCode for every PR
 
 ```sh
-node bin/navocode.js install --host codex --project /path/to/your-project --pr-mode always
+python3 bin/navocode.py install --host codex --project /path/to/your-project --pr-mode always
 ```
 
 This adds a PR preference to the installed skill's discovery instructions. It is agent guidance, not an enforced hook. Invocation still depends on the host loading and following skills.
@@ -120,7 +123,7 @@ The CLI must first be installed in that CI environment. Validation does not invo
 From this checkout:
 
 ```sh
-node bin/navocode.js demo --open
+python3 bin/navocode.py demo --open
 ```
 
 This opens an illustrative billing architecture in a temporary Git repository. It is useful for exploring the UI; it does not start an AI agent. For a live session, ask your assistant to use the skill.
@@ -166,13 +169,15 @@ Accepted specs live in Git. Published proposals live in GitHub. Browser sessions
 ## Development
 
 ```sh
+python3 -B -m unittest discover -s tests -p "test_*.py"
+# Optional browser tests (Node.js required):
 npm ci
 npm run check
 npx playwright install chromium
 npm run test:browser
 ```
 
-The runtime uses Node built-ins and browser APIs. Playwright is a development-only dependency. This repository's GitHub workflow runs the automated suite on Linux.
+The CLI, server, validation, source bindings, GitHub proposals, and installer are Python. Direct execution and installed skills need no Node.js or pip packages. Browser interaction uses JavaScript; a small Node launcher preserves npm commands. Node.js and Playwright are development dependencies for browser tests. This repository's GitHub workflow runs the automated suite on Linux.
 
 ## License
 

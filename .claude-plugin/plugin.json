@@ -1,8 +1,10 @@
 {
   "name": "navocode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Author and review software through an interactive architecture workspace",
-  "author": { "name": "NavoCode contributors" },
+  "author": {
+    "name": "NavoCode contributors"
+  },
   "repository": "https://github.com/120devin/NavoCode",
   "license": "Apache-2.0"
 }
