@@ -2,11 +2,31 @@
 
 <img src="ui/logo.png" alt="NavoCode logo" width="160">
 
-**The human interface to an AI-maintained codebase.**
+**Understand and steer AI-generated changes through an interactive architecture workspace.**
+
+The human interface to an AI-maintained codebase.
 
 Design, understand, change, and review software through an interactive architecture workspace. Your coding assistant reads and modifies the code underneath. Humans work with responsibilities, contracts, decisions, and tradeoffs instead of raw diffs.
 
 NavoCode **0.2.0** includes a working CLI, local browser UI, portable assistant skill, Claude Code plugin, and GitHub review proposals. Its backend uses only the Python standard library and has no runtime package dependencies, model API calls, account, or hosted database. Your existing assistant does the reasoning.
+
+![NavoCode's local workspace showing architectural decisions and a persistent feedback panel](docs/promotion/assets/workspace.png)
+
+*Illustrative billing demo. Decisions remain proposed, and the demo does not start an AI agent.*
+
+## Try the workspace first
+
+With **Python 3.10+** and **Git** installed:
+
+```sh
+git clone https://github.com/120devin/NavoCode.git
+cd NavoCode
+python3 bin/navocode.py demo --open
+```
+
+Explore responsibilities, switch between current and intended architecture, and inspect decisions before installing a skill. No account, model API key, npm installation, or Python packages are needed for this illustrative demo. For a live feedback and implementation session, install the skill below and invoke it in your existing assistant.
+
+[Watch the workspace walkthrough](docs/promotion/assets/workspace-walkthrough.mp4) · [See the architecture map](docs/promotion/assets/architecture.png)
 
 ## Install
 
@@ -117,16 +137,6 @@ navocode validate --repo . --spec .navocode/changes/CHANGE_ID/spec.json --ready
 ```
 
 The CLI must first be installed in that CI environment. Validation does not invoke a model or generate missing specs.
-
-## Try the UI
-
-From this checkout:
-
-```sh
-python3 bin/navocode.py demo --open
-```
-
-This opens an illustrative billing architecture in a temporary Git repository. It is useful for exploring the UI; it does not start an AI agent. For a live session, ask your assistant to use the skill.
 
 ## How the agent uses the CLI
 
