@@ -38,29 +38,90 @@ function render() {
   $('#proposal-link').hidden = !state.baseline;
   renderContent(); renderMessages(); choose(selected, false);
 }
-function graph(components) {
-  const wrap = el('div', undefined, 'graph'), ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  const columns = 2, rows = Math.ceil(components.length / columns), height = Math.max(190, rows * 145 + 25);
-  svg.setAttribute('viewBox', `0 0 620 ${height}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${version} architecture map`);
-  const make = (tag, attrs, text) => { const n = document.createElementNS(ns, tag); for (const [key, value] of Object.entries(attrs)) n.setAttribute(key, value); if (text !== undefined) n.textContent = text; return n; };
-  const positions = new Map(components.map((c, i) => [c.id, { x: 30 + (i % columns) * 310, y: 45 + Math.floor(i / columns) * 145 }]));
-  const defs = make('defs', {}), marker = make('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }); marker.append(make('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#8196b0' })); defs.append(marker); svg.append(defs);
-  for (const r of state.spec.relations) {
-    if (r.state !== 'both' && r.state !== version) continue;
-    const a = positions.get(r.from), b = positions.get(r.to); if (!a || !b) continue;
-    const horizontal = a.y === b.y;
-    const x1 = horizontal ? a.x + (b.x > a.x ? 245 : 0) : a.x + 122, y1 = horizontal ? a.y + 34 : a.y + (b.y > a.y ? 68 : 0);
-    const x2 = horizontal ? b.x + (a.x > b.x ? 245 : 0) : b.x + 122, y2 = horizontal ? b.y + 34 : b.y + (a.y > b.y ? 68 : 0);
-    svg.append(make('path', { d: `M ${x1} ${y1} L ${x2} ${y2}`, class: 'edge', 'marker-end': 'url(#arrow)' }));
-    svg.append(make('text', { x: (x1 + x2) / 2, y: horizontal ? a.y - 13 : (y1 + y2) / 2 - 10, 'text-anchor': 'middle', class: 'edge-label' }, r.label.length > 30 ? r.label.slice(0, 28) + '…' : r.label));
+// Collapse cycles before assigning dependency layers; input order is only a tie-breaker.
+function architectureLayers(components, relations) {
+  const ids = components.map(c => c.id), edges = new Map(ids.map(id => [id, []]));
+  for (const r of relations) if (edges.has(r.from) && edges.has(r.to)) edges.get(r.from).push(r.to);
+  const reachable = new Map(ids.map(id => {
+    const seen = new Set(), visit = node => { if (seen.has(node)) return; seen.add(node); edges.get(node).forEach(visit); };
+    visit(id); return [id, seen];
+  }));
+  const owner = new Map(), clusters = [];
+  for (const id of ids) if (!owner.has(id)) {
+    const members = ids.filter(other => reachable.get(id).has(other) && reachable.get(other).has(id));
+    members.forEach(member => owner.set(member, clusters.length)); clusters.push(members);
   }
+  const parents = clusters.map(() => new Set());
+  for (const r of relations) if (owner.has(r.from) && owner.has(r.to) && owner.get(r.from) !== owner.get(r.to)) parents[owner.get(r.to)].add(owner.get(r.from));
+  const ranks = new Map(), rank = index => {
+    if (!ranks.has(index)) ranks.set(index, Math.max(0, ...[...parents[index]].map(parent => rank(parent) + 1)));
+    return ranks.get(index);
+  };
+  const layers = [];
+  for (const c of components) { const level = rank(owner.get(c.id)); (layers[level] ||= []).push(c); }
+  return layers;
+}
+function graph(components) {
+  const wrap = el('div', undefined, 'architecture-map'), canvas = el('div', undefined, 'graph'), ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  const relations = state.spec.relations.filter(r => r.state === 'both' || r.state === version);
+  const make = (tag, attrs, text) => { const n = document.createElementNS(ns, tag); for (const [key, value] of Object.entries(attrs)) n.setAttribute(key, value); if (text !== undefined) n.textContent = text; return n; };
+  const lines = (text, limit) => {
+    const result = []; let line = '';
+    for (const word of text.split(/\s+/)) {
+      if (line && (line + ' ' + word).length > limit) { result.push(line); line = ''; }
+      // Split long identifiers so user-supplied text stays inside its component.
+      let rest = word;
+      while (rest.length > limit) { if (line) { result.push(line); line = ''; } result.push(rest.slice(0, limit)); rest = rest.slice(limit); }
+      line += (line ? ' ' : '') + rest;
+    }
+    if (line) result.push(line); return result;
+  };
+  const positions = new Map(); let y = 30;
+  for (const layer of architectureLayers(components, relations)) {
+    for (let offset = 0; offset < layer.length; offset += 3) {
+      const row = layer.slice(offset, offset + 3); let rowHeight = 0;
+      row.forEach((c, column) => {
+        const name = lines(c.name, 28), responsibility = lines(c[version] || 'Responsibility not described yet.', 34);
+        const height = 42 + name.length * 19 + responsibility.length * 16;
+        positions.set(c.id, { x: 24 + column * 290, y, height, name, responsibility }); rowHeight = Math.max(rowHeight, height);
+      });
+      y += rowHeight + 90;
+    }
+  }
+  const width = Math.min(3, Math.max(1, components.length)) * 290 + 80;
+  svg.setAttribute('viewBox', `0 0 ${width} ${Math.max(190, y)}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${version} architecture map`);
+  const defs = make('defs', {}), marker = make('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }); marker.append(make('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#58718d' })); defs.append(marker); svg.append(defs);
+  relations.forEach((r, index) => {
+    const a = positions.get(r.from), b = positions.get(r.to); if (!a || !b) return;
+    let path, labelX, labelY;
+    if (a.y < b.y && b.y - (a.y + a.height) <= 90) {
+      const x1 = a.x + 130, x2 = b.x + 130, mid = a.y + a.height + 35 + (index % 3) * 14;
+      path = `M ${x1} ${a.y + a.height} V ${mid} H ${x2} V ${b.y}`; labelX = (x1 + x2) / 2 + 12; labelY = mid - 6;
+    } else if (a.y === b.y && r.from !== r.to) {
+      const above = a.y - 16 - (index % 2) * 10;
+      path = `M ${a.x + 130} ${a.y} V ${above} H ${b.x + 130} V ${b.y}`; labelX = (a.x + b.x) / 2 + 130; labelY = above - 4;
+    } else {
+      const gutter = width - 35 + (index % 3) * 10, exit = a.y + a.height + 20, entry = b.y - 15;
+      path = `M ${a.x + 130} ${a.y + a.height} V ${exit} H ${gutter} V ${entry} H ${b.x + 130} V ${b.y}`; labelX = gutter - 10; labelY = (exit + entry) / 2;
+    }
+    const edge = make('g', {}); edge.append(make('title', {}, `${index + 1}. ${r.label}`), make('path', { d: path, class: 'edge', 'marker-end': 'url(#arrow)' }), make('text', { x: labelX, y: labelY, class: 'edge-label' }, String(index + 1))); svg.append(edge);
+  });
   for (const c of components) {
     const p = positions.get(c.id), g = make('g', { role: 'button', tabindex: '0', 'aria-label': `Inspect ${c.name}`, class: selected === c.id ? 'selected' : '', 'data-concept': c.id });
-    g.append(make('rect', { x: p.x, y: p.y, width: 245, height: 68, rx: 10 }), make('text', { x: p.x + 17, y: p.y + 28 }, c.name.length > 29 ? c.name.slice(0, 27) + '…' : c.name), make('text', { x: p.x + 17, y: p.y + 48, class: 'edge-label' }, 'Discuss this responsibility →'));
+    g.append(make('title', {}, `${c.name}: ${c[version]}`), make('rect', { x: p.x, y: p.y, width: 260, height: p.height, rx: 8 }));
+    p.name.forEach((line, i) => g.append(make('text', { x: p.x + 14, y: p.y + 26 + i * 19, class: 'component-name' }, line)));
+    p.responsibility.forEach((line, i) => g.append(make('text', { x: p.x + 14, y: p.y + 32 + p.name.length * 19 + i * 16, class: 'component-responsibility' }, line)));
     g.onclick = () => choose(c.id); g.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(c.id); } }; svg.append(g);
   }
-  wrap.append(svg); return wrap;
+  canvas.append(svg); wrap.append(canvas);
+  if (relations.length) {
+    wrap.append(el('h3', 'Boundary contracts'));
+    const contracts = el('ol', undefined, 'graph-contracts'), names = new Map(components.map(c => [c.id, c.name]));
+    for (const r of relations) { const item = el('li'); item.append(el('strong', `${names.get(r.from)} → ${names.get(r.to)}`), el('span', r.label)); contracts.append(item); }
+    wrap.append(contracts);
+  } else wrap.append(el('p', 'No interactions are recorded for this view.', 'fine'));
+  return wrap;
 }
 function renderContent() {
   const content = $('#content'), s = state.spec; content.replaceChildren();

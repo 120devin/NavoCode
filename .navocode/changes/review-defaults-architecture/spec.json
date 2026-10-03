@@ -1,0 +1,262 @@
+{
+  "schemaVersion": "1.0",
+  "changeId": "review-defaults-architecture",
+  "title": "Automatic PR review and technical architecture maps",
+  "intent": "Make a short NavoCode PR review request open an interactive workspace and show responsibilities and contracts at senior engineering depth.",
+  "baseRef": "da61b43f57c3c67bd90a0429a9f3dec3ddb1822b",
+  "sourceDigest": "sha256:6154f42eacd2ec83298e82616d2c229534f777ecd05a24ff2afbb9d39bb1d055",
+  "groups": [
+    {
+      "id": "review-defaults",
+      "title": "Automatic interactive PR review",
+      "summary": "Select one applicable change, open reviewer mode and enter feedback listening from a short review request.",
+      "componentIds": [
+        "host-skill",
+        "cli",
+        "github-adapter",
+        "spec-binding",
+        "feedback-server",
+        "spec-files"
+      ],
+      "decisionIds": [
+        "interactive-default"
+      ],
+      "paths": [
+        "README.md",
+        "skills/navocode/SKILL.md",
+        "skills/navocode/references/review.md",
+        "src/navocode/cli.py",
+        "src/navocode/github.py",
+        "tests/test_runtime.py"
+      ]
+    },
+    {
+      "id": "technical-map",
+      "title": "Technical architecture review",
+      "summary": "Show internal responsibility boundaries, dependency direction and complete interaction contracts without mapping every helper.",
+      "componentIds": [
+        "browser",
+        "host-skill"
+      ],
+      "decisionIds": [
+        "architecture-depth"
+      ],
+      "paths": [
+        "skills/navocode/references/specs.md",
+        "ui/app.js",
+        "ui/style.css",
+        "tests/browser.e2e.js"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "host-skill",
+      "name": "Host review skill",
+      "current": "Review instructions require agents to assemble prepare/start/listen steps.",
+      "intended": "Interpret a short PR review request as fetch, select, open and listen. Infer architectural boundaries from inspected source.",
+      "observed": "Updated skill makes the full review loop the default and defines handling for inferred or ambiguous specs."
+    },
+    {
+      "id": "cli",
+      "name": "Review CLI orchestration",
+      "current": "Prepare a temporary PR checkout and return context only.",
+      "intended": "Start a reviewer session after successful preparation; return session and authenticated URL. Allow prepare-only for context tooling.",
+      "observed": "CLI review starts review mode by default; ambiguous/missing specs return context without opening an incorrect workspace."
+    },
+    {
+      "id": "github-adapter",
+      "name": "GitHub review adapter",
+      "current": "Fetch the exact PR head; require manual selection whenever multiple specs exist.",
+      "intended": "Select the only fresh spec covering PR changes. Preserve exact-head binding and immutable baseline.",
+      "observed": "Candidate inspection rejects stale or incomplete specs from automatic selection and preserves explicit change overrides."
+    },
+    {
+      "id": "spec-binding",
+      "name": "Spec validator and source binding",
+      "current": "Validate schema, source digest, changed-file coverage and evidence freshness.",
+      "intended": "Own schema and source-binding checks used to determine candidate applicability.",
+      "observed": "Existing core.inspect and assert_spec are reused; acceptance records and freshness contracts are unchanged."
+    },
+    {
+      "id": "feedback-server",
+      "name": "Local HTTP feedback server",
+      "current": "Serve authenticated state, revision-bound feedback and agent acknowledgements.",
+      "intended": "Own live session state and pending feedback; persist no hosted state.",
+      "observed": "Existing loopback token-authenticated server serves the same reviewer session launched by CLI start."
+    },
+    {
+      "id": "browser",
+      "name": "Browser architecture renderer",
+      "current": "Render names in a fixed two-column grid with truncated relation labels.",
+      "intended": "Lay out dependency layers, collapse cycles for ranking, show responsibilities and complete numbered boundary contracts.",
+      "observed": "SVG renders wrapped component text, directional routed edges and a full contract list. Before/Intended filters and contextual discussion remain available."
+    },
+    {
+      "id": "spec-files",
+      "name": "Spec and review baseline files",
+      "current": "Store architectural intent, evidence and original PR baseline in JSON.",
+      "intended": "Remain the source of truth for architecture; temporary spec edits remain separate from original PR code.",
+      "observed": "Review still writes baseline/context to a temporary directory and reads spec revisions for proposal comparison."
+    }
+  ],
+  "relations": [
+    {
+      "id": "host-cli",
+      "from": "host-skill",
+      "to": "cli",
+      "label": "CLI review PR_URL; consume workspace session and full URL",
+      "state": "both"
+    },
+    {
+      "id": "cli-github",
+      "from": "cli",
+      "to": "github-adapter",
+      "label": "gh API and Git fetch: exact PR head, base and candidate specs",
+      "state": "both"
+    },
+    {
+      "id": "github-binding",
+      "from": "github-adapter",
+      "to": "spec-binding",
+      "label": "Validate schema, source digest and changed-path coverage",
+      "state": "both"
+    },
+    {
+      "id": "github-spec",
+      "from": "github-adapter",
+      "to": "spec-files",
+      "label": "Read candidate specs; snapshot immutable PR baseline",
+      "state": "both"
+    },
+    {
+      "id": "cli-server",
+      "from": "cli",
+      "to": "feedback-server",
+      "label": "Start detached review server after selecting applicable spec",
+      "state": "intended"
+    },
+    {
+      "id": "server-spec",
+      "from": "feedback-server",
+      "to": "spec-files",
+      "label": "Read revision-bound spec and baseline for workspace state",
+      "state": "both"
+    },
+    {
+      "id": "browser-server",
+      "from": "browser",
+      "to": "feedback-server",
+      "label": "Bearer-authenticated HTTP state polling, feedback and acknowledgements",
+      "state": "both"
+    },
+    {
+      "id": "host-feedback",
+      "from": "host-skill",
+      "to": "feedback-server",
+      "label": "CLI feedback --wait 25; handle event before ack",
+      "state": "both"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "interactive-default",
+      "title": "Default review interaction",
+      "category": "contracts",
+      "choice": "A short request to review a PR with NavoCode starts the full reviewer workspace and live feedback loop.",
+      "alternatives": [
+        "Require explicit change, workspace-opening and listening instructions on every review."
+      ],
+      "consequences": [
+        "The human can start review with a short request.",
+        "Ambiguous applicable changes still require a choice; no applicable spec requires an inferred draft.",
+        "An active host turn is required for feedback listening."
+      ],
+      "status": "accepted",
+      "provenance": "human",
+      "evidenceIds": [
+        "runtime-tests",
+        "source-inspection"
+      ]
+    },
+    {
+      "id": "architecture-depth",
+      "title": "Technical diagram depth",
+      "category": "boundaries",
+      "choice": "Show internal high-level components and boundary contracts at a level where senior engineers decide ownership and dependencies.",
+      "alternatives": [
+        "Keep broad product-area nodes with generic links.",
+        "Create a node for every file or helper."
+      ],
+      "consequences": [
+        "Specs must describe actual responsibility and contract boundaries based on source inspection.",
+        "Large maps use horizontal scrolling to preserve readable text; full contract labels remain in the list below."
+      ],
+      "status": "accepted",
+      "provenance": "human",
+      "evidenceIds": [
+        "browser-tests",
+        "source-inspection"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "runtime-tests",
+      "kind": "test",
+      "claim": "Automatic review defaults preserve revision-bound review behavior.",
+      "detail": "npm run check passed JavaScript syntax checks and 34 Python runtime tests, including fresh candidate selection over historical/incomplete specs and default session startup versus prepare-only.",
+      "paths": [
+        "tests/test_runtime.py"
+      ],
+      "status": "supported",
+      "sourceDigest": "sha256:6154f42eacd2ec83298e82616d2c229534f777ecd05a24ff2afbb9d39bb1d055"
+    },
+    {
+      "id": "browser-tests",
+      "kind": "test",
+      "claim": "Technical maps retain interaction, safe rendering and mobile containment.",
+      "detail": "npm run test:browser passed 2 Chromium tests, including cyclic and self-loop relations, an isolated component, complete long contract text, Before/Intended relation filtering, feedback context and mobile width.",
+      "paths": [
+        "tests/browser.e2e.js"
+      ],
+      "status": "supported",
+      "sourceDigest": "sha256:6154f42eacd2ec83298e82616d2c229534f777ecd05a24ff2afbb9d39bb1d055"
+    },
+    {
+      "id": "source-inspection",
+      "kind": "source",
+      "claim": "The requested defaults and architecture depth are represented in the skill, CLI and browser.",
+      "detail": "Inspected candidate inspection, CLI startup, authenticated session transport and SVG renderer. Human instruction in this session explicitly requested automatic PR review and internal high-level architecture at senior-engineering depth.",
+      "paths": [
+        "README.md",
+        "skills/navocode/SKILL.md",
+        "skills/navocode/references/review.md",
+        "src/navocode/cli.py",
+        "src/navocode/github.py",
+        "tests/test_runtime.py",
+        "skills/navocode/references/specs.md",
+        "ui/app.js",
+        "ui/style.css",
+        "tests/browser.e2e.js"
+      ],
+      "status": "supported",
+      "sourceDigest": "sha256:6154f42eacd2ec83298e82616d2c229534f777ecd05a24ff2afbb9d39bb1d055"
+    }
+  ],
+  "acceptanceCriteria": [
+    "A short review request opens reviewer mode and enters the feedback loop without repeated instructions.",
+    "A single applicable spec is chosen even when historical specs exist.",
+    "Ambiguous candidates never silently select an unrelated spec.",
+    "Architecture shows component responsibilities and full directional boundary contracts.",
+    "Cycles, isolated components and Before/Intended views render safely at mobile and desktop widths."
+  ],
+  "nonGoals": [
+    "Auto-waking an idle assistant.",
+    "Publishing review proposals without human request.",
+    "Changing PR source when reviewing it.",
+    "Mapping every file or helper as a component."
+  ],
+  "unknowns": [],
+  "supportingChanges": []
+}

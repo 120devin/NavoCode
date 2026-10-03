@@ -15,11 +15,11 @@ test('browser author: explore, send feedback, receive agent revision, accept, re
   assert.equal(await page.locator('#decisions').evaluate(n => n === document.querySelector('#content').firstElementChild), true);
   await page.getByRole('heading', { name: 'Assurance', exact: true }).waitFor();
   assert.equal(await page.locator('[role=tab]').count(), 0);
-  await page.getByText(f.spec.components[0].current, { exact: true }).waitFor();
-  await page.getByText(f.spec.components[0].intended, { exact: true }).waitFor();
+  await page.locator('.responsibility').getByText(f.spec.components[0].current, { exact: true }).waitFor();
+  await page.locator('.responsibility').getByText(f.spec.components[0].intended, { exact: true }).waitFor();
   await page.screenshot({ path: '/tmp/navocode-review-preview.png' });
   await page.getByRole('button', { name: 'Inspect Billing service' }).click();
-  await page.getByText(f.spec.components[0].intended, { exact: true }).waitFor();
+  await page.locator('.responsibility').getByText(f.spec.components[0].intended, { exact: true }).waitFor();
   await page.getByRole('heading', { name: 'Billing service', exact: true }).waitFor();
   await page.getByLabel('Describe a question or architectural change').fill('Keep eligibility in authorization and charging in billing.');
   await page.getByRole('button', { name: 'Suggest change', exact: true }).click();
@@ -56,6 +56,19 @@ test('browser reviewer: compare edits, publish intent, no direct implementation 
   assert.equal(await page.locator('#content img').count(), 0);
   await page.getByRole('button', { name: 'Publish proposal' }).click();
   assert.equal((await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0].action, 'publish');
+  // Long contracts stay readable, and dependency cycles/self-loops remain navigable.
+  const longContract = 'POST revision-bound feedback to the local HTTP transport with human decision context and idempotent event acknowledgement';
+  f.spec.relations.push({ id: 'feedback-return', from: 'billing', to: 'clients', label: longContract, state: 'intended' });
+  f.spec.relations.push({ id: 'billing-loop', from: 'billing', to: 'billing', label: 'Retry pending feedback', state: 'intended' });
+  f.spec.components.push({ id: 'audit', name: 'Independent audit adapter', current: 'Read local state.', intended: 'Inspect persisted events without owning policy.', observed: '' });
+  jsonWrite(f.path, f.spec);
+  await page.locator('.graph-contracts').getByText(longContract, { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Inspect Independent audit adapter' }).waitFor();
+  assert.equal(await page.locator('.graph svg [data-concept]').count(), 4);
+  await page.getByRole('button', { name: 'Before', exact: true }).click();
+  assert.equal(await page.locator('.graph-contracts').getByText(longContract, { exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Intended', exact: true }).click();
+  await page.locator('.graph-contracts').getByText(longContract, { exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.locator('body').evaluate(el => el.scrollWidth <= window.innerWidth + 1));
   await page.screenshot({ path: '/tmp/navocode-review-mobile-test.png', fullPage: true });
