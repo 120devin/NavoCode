@@ -29,7 +29,7 @@ ack --session FILE --event ID --message TEXT
 stop --session FILE
 brief --spec FILE
 summary --spec FILE
-review PR_URL [--change ID]
+review PR_URL [--change ID] [--prepare-only]
 review-bind --context FILE --spec FILE
 proposal create --spec FILE --baseline FILE --context FILE --rationale TEXT --out FILE
 proposal show --proposal FILE
@@ -66,7 +66,7 @@ def main(argv=None):
     parser.add_argument('command', nargs='?', default='help'); parser.add_argument('arguments', nargs='*')
     keys = ('repo', 'id', 'title', 'intent', 'base', 'spec', 'mode', 'port', 'session', 'wait', 'event', 'message', 'baseline', 'context', 'out', 'rationale', 'proposal', 'host', 'project', 'pr-mode', 'change')
     for key in keys: parser.add_argument('--' + key)
-    for key in ('open', 'ready'): parser.add_argument('--' + key, action='store_true')
+    for key in ('open', 'ready', 'prepare-only'): parser.add_argument('--' + key, action='store_true')
     options = vars(parser.parse_args(argv)); command = options['command']; args = options['arguments']
     def need(key):
         if not options.get(key): raise ValueError('--' + key.replace('_', '-') + ' is required')
@@ -107,7 +107,11 @@ def main(argv=None):
     elif command == 'feedback': output(session_request(need('session'), '/api/feedback?wait=' + str(min(50, max(0, float(options.get('wait') or 25))))))
     elif command == 'ack': output(session_request(need('session'), '/api/ack', dict(id=need('event'), message=need('message'))))
     elif command == 'stop': output(session_request(need('session'), '/api/stop', {}))
-    elif command == 'review': output(github.prepare_review(args[0] if args else '', options.get('change')))
+    elif command == 'review':
+        result = github.prepare_review(args[0] if args else '', options.get('change'))
+        if result.get('spec') and not options['prepare_only']:
+            result['workspace'] = start(dict(repo=result['repo'], spec=result['spec'], baseline=result['baseline'], mode='review', open=True))
+        output(result)
     elif command == 'review-bind':
         context = read_json(need('context')); value = spec()
         if head_of(context['repo']) != context['headSha'] or source_digest(context['repo']) != value['sourceDigest'] or changed_files(context['repo'], context['headSha']): raise ValueError('Review source binding changed')

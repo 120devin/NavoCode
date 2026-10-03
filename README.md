@@ -81,9 +81,9 @@ The agent then updates source code, runs checks, and reconciles the observed imp
 
 In your assistant:
 
-> Use NavoCode to review https://github.com/OWNER/REPO/pull/123.
+> Review https://github.com/OWNER/REPO/pull/123 with NavoCode.
 
-The agent fetches the exact PR revision into a temporary checkout and opens the same workspace. You do not manually pull the branch or read the raw diff. If the PR has no specs, the agent creates a clearly labeled inferred draft.
+The agent fetches the exact PR revision into a temporary checkout, selects the applicable change, opens the reviewer workspace, and keeps listening for feedback automatically. A single fresh spec covering the PR is selected even if historical specs exist; if several qualify, the agent asks which change you want. You do not manually pull the branch or read the raw diff. If the PR has no specs, the agent creates a clearly labeled inferred draft.
 
 Suggest architectural edits and inspect them in **Proposed edits**. When ready, choose **Publish proposal**. The agent prepares and posts a GitHub timeline comment containing:
 
@@ -148,7 +148,7 @@ navocode ack --session /returned/path/session.json --event EVENT_ID \
 # Check source binding, coverage, evidence, and readiness.
 navocode validate --repo . --spec .navocode/changes/billing/spec.json --ready
 
-# Fetch a PR for review without touching the user's working branch.
+# Fetch a PR and open its reviewer workspace without touching the user's branch.
 navocode review https://github.com/OWNER/REPO/pull/123
 ```
 

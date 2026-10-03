@@ -25,6 +25,18 @@ def assert_remote_head(proposal, runner=gh):
     if pr['state'] != 'open': raise ValueError('PR is not open')
     return pr
 
+def review_candidates(repo, names):
+    candidates = []
+    for name in names:
+        path = repo / '.navocode/changes' / name / 'spec.json'
+        if not path.resolve().is_relative_to(repo.resolve()): raise ValueError('PR specification resolves outside the checkout')
+        try:
+            spec = assert_spec(read_json(path)); report = inspect(spec, repo)
+            candidates.append(dict(id=name, title=spec['title'], applicable=report['fresh'] and not report['uncovered']))
+        except (ValueError, OSError, KeyError):
+            candidates.append(dict(id=name, title=name, applicable=False))
+    return candidates
+
 def prepare_review(url, change=None, runner=gh):
     context = identity(url); pr = remote_pr(context, runner)
     folder = Path(tempfile.mkdtemp(prefix='navocode-review-')); repo = folder / 'repo'
@@ -34,12 +46,17 @@ def prepare_review(url, change=None, runner=gh):
     git(repo, 'fetch', '--no-tags', 'origin', pr['base']['sha'])
     changes = repo / '.navocode/changes'
     options = sorted(p.name for p in changes.iterdir() if re.fullmatch(r'[\w-]+', p.name) and (p / 'spec.json').exists()) if changes.exists() else []
-    if change: options = [name for name in options if name == change]
+    candidates = review_candidates(repo, options)
+    if change:
+        if change not in options: raise ValueError('Unknown change: ' + change)
+        options = [change]
+    else:
+        options = [c['id'] for c in candidates if c['applicable']]
     context.update(headSha=pr['head']['sha'], baseSha=pr['base']['sha'], repo=str(repo), folder=str(folder))
     context_path = folder / 'context.json'
     if len(options) != 1:
         write_json(context_path, context)
-        return dict(context, context=str(context_path), specs=options, action='Select --change from the listed specs.' if options else 'Generate an inferred draft using baseSha, then review-bind before edits.')
+        return dict(context, context=str(context_path), specs=options, candidates=candidates, action='Select --change from the listed specs.' if options else 'Generate an inferred draft using baseSha, then review-bind before edits.')
     path = changes / options[0] / 'spec.json'
     if not path.resolve().is_relative_to(repo.resolve()): raise ValueError('PR specification resolves outside the checkout')
     spec = assert_spec(read_json(path)); report = inspect(spec, repo)

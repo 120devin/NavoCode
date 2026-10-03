@@ -10,11 +10,14 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
+from contextlib import redirect_stdout
+from io import StringIO
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
-from navocode import core, proposals, github, install
+from navocode import core, proposals, github, install, cli
 from navocode.server import Workspace, session_request
 ROOT = core.ROOT
 
@@ -168,18 +171,45 @@ class RuntimeTests(unittest.TestCase):
         event=self.feedback(result['session']);data=json.loads(self.cli('feedback','--session',result['session'],'--wait','0').stdout);self.assertEqual(data['events'][0]['id'],event['id'])
         if shutil.which('node'):
             text=subprocess.check_output(['node',str(ROOT/'bin/navocode.js'),'help'],text=True);self.assertIn('NavoCode 0.2.0',text)
+    def test_review_candidates_exclude_historical_and_uncovered_specs(self):
+        historical=copy.deepcopy(self.spec);historical.update(changeId='historical',sourceDigest='sha256:'+'0'*64)
+        core.write_json(self.repo/'.navocode/changes/historical/spec.json',historical)
+        incomplete=copy.deepcopy(self.spec);incomplete['groups'][0]['paths']=[]
+        core.write_json(self.repo/'.navocode/changes/incomplete/spec.json',incomplete)
+        candidates=github.review_candidates(self.repo,['delegated-billing','historical','incomplete'])
+        self.assertEqual([c['id'] for c in candidates if c['applicable']],['delegated-billing'])
+        alternative=copy.deepcopy(self.spec);alternative['changeId']='alternative'
+        core.write_json(self.repo/'.navocode/changes/alternative/spec.json',alternative)
+        self.assertEqual(len([c for c in github.review_candidates(self.repo,['delegated-billing','alternative']) if c['applicable']]),2)
+    def test_review_cli_opens_workspace_by_default_and_supports_prepare_only(self):
+        prepared=dict(repo=str(self.repo),spec=str(self.path),baseline='baseline.json')
+        workspace=dict(session='session.json',url='http://127.0.0.1:1234/#token')
+        with patch.object(github,'prepare_review',return_value=prepared),patch.object(cli,'start',return_value=workspace) as start:
+            stream=StringIO()
+            with redirect_stdout(stream): cli.main(['review','https://github.com/owner/repo/pull/7'])
+            self.assertEqual(json.loads(stream.getvalue())['workspace'],workspace)
+            self.assertEqual(start.call_args.args[0],dict(repo=str(self.repo),spec=str(self.path),baseline='baseline.json',mode='review',open=True))
+            start.reset_mock()
+            with redirect_stdout(StringIO()): cli.main(['review','https://github.com/owner/repo/pull/7','--prepare-only'])
+            start.assert_not_called()
+        with patch.object(github,'prepare_review',return_value=dict(specs=['one','two'])),patch.object(cli,'start') as start:
+            with redirect_stdout(StringIO()): cli.main(['review','https://github.com/owner/repo/pull/7'])
+            start.assert_not_called()
     def test_git_author_review_adoption_lifecycle(self):
         (self.repo/'billing.py').write_text('def payer(account, delegated=None):\n    return delegated or account\n')
         self.spec['groups'][0]['paths'].append('billing.py')
         self.spec['sourceDigest']=core.source_digest(self.repo)
         self.spec['evidence'][0]['sourceDigest']=self.spec['sourceDigest']
         core.write_json(self.path,self.spec)
+        historical=copy.deepcopy(self.spec);historical.update(changeId='historical',sourceDigest='sha256:'+'0'*64)
+        core.write_json(self.repo/'.navocode/changes/historical/spec.json',historical)
         remote=Path(self.temp.name)/'remote';remote.mkdir();core.git(remote,'init','--bare','-q');core.git(self.repo,'checkout','-qb','feature');core.git(self.repo,'add','.');core.git(self.repo,'commit','-qm','Author source and specs');core.git(self.repo,'remote','add','origin',str(remote));core.git(self.repo,'push','-q','origin','feature','HEAD:refs/pull/7/head')
         first=core.head_of(self.repo)
         def runner(args,data=None):
             if args[0]=='repo':core.run(['git','clone','--quiet','--no-checkout',str(remote),args[3]]);return ''
             return json.dumps(dict(head=dict(sha=first),base=dict(sha=self.base),state='open'))
         review=github.prepare_review('https://github.com/owner/repo/pull/7',runner=runner);self.addCleanup(__import__('shutil').rmtree,review['folder'])
+        self.assertEqual(review['specPath'],'.navocode/changes/delegated-billing/spec.json')
         self.assertTrue(review['report']['fresh']);baseline=core.read_json(review['baseline']);next_spec=copy.deepcopy(baseline);next_spec['decisions'][0]['choice']='Billing validates ownership.'
         p=proposals.create(baseline,next_spec,review,'Validate ownership.');accepted=proposals.apply(core.read_json(self.path),p,first);core.write_json(self.path,accepted)
         self.assertEqual(core.head_of(self.repo),first)

@@ -13,6 +13,14 @@ Resolve this skill's directory from the skill file location. Run `python3 <skill
 
 Run `CLI help` if needed. Read [specification guidance](references/specs.md) when creating or revising a spec , [engineer decision guidance](references/decisions.md), and [PR review guidance](references/review.md) for review/proposal/adoption.
 
+## Review defaults
+
+A short request such as “review PR URL with NavoCode” means the full interactive review: fetch the exact PR head, select its applicable change, open the reviewer workspace, and keep listening for feedback. Do not require the user to spell out those steps, name a change, or ask you to keep listening.
+
+Run `CLI review PR_URL`. It automatically selects a single fresh spec covering the changed files and starts a reviewer session. Open the returned `workspace.url` with the host browser tool and enter the live feedback loop using `workspace.session` immediately. Preserve the entire URL, including its session-token fragment, when sharing it. If selection is ambiguous, show the candidate change IDs/titles and ask which to review; never silently choose an unrelated or stale spec. If no usable spec exists, inspect the source, create an explicitly inferred architectural draft, `review-bind`, then start review mode as described in the review guidance. `--change ID` overrides selection; `--prepare-only` fetches context without starting a session.
+
+Read the specification guidance and inspect the source before refining the architecture. Model the internal high-level components and their contracts at the level where a senior engineer decides ownership, dependency direction, data flow, trust, and failure behavior. Product areas and file lists alone are not a technical architecture.
+
 ## Author
 
 1. Resolve the project Git root. Choose the actual comparison base: normally the PR's merge base, or HEAD before implementing a new request. `CLI context --repo ROOT --base REF` lists changed paths and the source digest.
