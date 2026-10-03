@@ -64,64 +64,113 @@ function architectureLayers(components, relations) {
 function graph(components) {
   const wrap = el('div', undefined, 'architecture-map'), canvas = el('div', undefined, 'graph'), ns = 'http://www.w3.org/2000/svg';
   const svg = document.createElementNS(ns, 'svg');
-  const relations = state.spec.relations.filter(r => r.state === 'both' || r.state === version);
+  const allRelations = state.spec.relations, visible = r => r.state === 'both' || r.state === version;
   const make = (tag, attrs, text) => { const n = document.createElementNS(ns, tag); for (const [key, value] of Object.entries(attrs)) n.setAttribute(key, value); if (text !== undefined) n.textContent = text; return n; };
-  const lines = (text, limit) => {
+  const measure = document.createElement('canvas').getContext('2d');
+  if (measure) measure.font = `600 15px ${getComputedStyle(document.body).fontFamily}`;
+  const lines = (text, limit = 43) => {
     const result = []; let line = '';
-    for (const word of text.split(/\s+/)) {
-      if (line && (line + ' ' + word).length > limit) { result.push(line); line = ''; }
-      // Split long identifiers so user-supplied text stays inside its component.
-      let rest = word;
-      while (rest.length > limit) { if (line) { result.push(line); line = ''; } result.push(rest.slice(0, limit)); rest = rest.slice(limit); }
-      line += (line ? ' ' : '') + rest;
+    const fits = value => value.length <= limit && (!measure || measure.measureText(value).width <= limit * 7.1);
+    for (const word of text.trim().split(/\s+/)) {
+      if (line && !fits(line + ' ' + word)) { result.push(line); line = ''; }
+      let chunk = '';
+      for (const character of word) {
+        if (chunk && !fits(chunk + character)) { if (line) { result.push(line); line = ''; } result.push(chunk); chunk = ''; }
+        chunk += character;
+      }
+      if (line && !fits(line + ' ' + chunk)) { result.push(line); line = ''; }
+      line += (line ? ' ' : '') + chunk;
     }
     if (line) result.push(line); return result;
   };
-  const positions = new Map(); let y = 30;
-  for (const layer of architectureLayers(components, relations)) {
-    for (let offset = 0; offset < layer.length; offset += 3) {
-      const row = layer.slice(offset, offset + 3); let rowHeight = 0;
+  const textBlock = (parent, text, x, y, cls, limit = 43) => {
+    const parts = lines(text, limit), node = make('text', { x, y, class: cls });
+    parts.forEach((line, i) => node.append(make('tspan', { x, dy: i ? 17 : 0 }, line + (i < parts.length - 1 ? ' ' : '')))); parent.append(node); return parts.length * 17;
+  };
+  const names = new Map(components.map(c => [c.id, c.name]));
+  const pendingFor = c => {
+    const ids = new Set(state.spec.groups.filter(g => g.componentIds.includes(c.id)).flatMap(g => g.decisionIds));
+    return state.spec.decisions.filter(d => ids.has(d.id) && (d.status !== 'accepted' || d.provenance !== 'human'));
+  };
+  const nodeWidth = 350, columnStep = 435, positions = new Map();
+  // Layout uses both versions and reserves the larger text block. A version switch
+  // changes content and interactions, never node coordinates.
+  let y = 0;
+  for (const layer of architectureLayers(components, allRelations)) {
+    for (let offset = 0; offset < layer.length; offset += 2) {
+      const row = layer.slice(offset, offset + 2); let rowHeight = 0;
       row.forEach((c, column) => {
-        const name = lines(c.name, 28), responsibility = lines(c[version] || 'Responsibility not described yet.', 34);
-        const height = 42 + name.length * 19 + responsibility.length * 16;
-        positions.set(c.id, { x: 24 + column * 290, y, height, name, responsibility }); rowHeight = Math.max(rowHeight, height);
+        const contracts = allRelations.filter(r => r.from === c.id), pending = pendingFor(c);
+        let height = 24 + lines(c.name, 36).length * 17 + 6 + lines([c.kind || 'Type not recorded', c.technology || 'Technology not recorded'].join(' · ')).length * 17 + 5 + 17 + 8 + Math.max(lines(c.current || 'Responsibility not recorded.').length, lines(c.intended || 'Responsibility not recorded.').length) * 17 + 9;
+        if (c.current.trim() !== c.intended.trim()) height += 8 + Math.max(lines('Previously: ' + (c.current || 'not recorded')).length, lines('Intended: ' + (c.intended || 'not recorded')).length) * 17;
+        if (!c.observed.trim()) height += 22;
+        for (const [label, value] of [['Boundary', c.boundary], ['Risk', c.risk]]) if (value) height += 5 + lines(`${label}: ${value}`).length * 17;
+        for (const d of pending) height += 5 + lines('Decision needed: ' + d.title).length * 17;
+        height += 26; // Reserve the empty-view notice even when all contracts are hidden.
+        for (const r of contracts) height += 39 + lines('→ ' + names.get(r.to)).length * 17 + lines(r.label).length * 17 + (r.protocol ? lines('Protocol: ' + r.protocol).length * 17 : 0) + (r.failure ? lines('On failure: ' + r.failure).length * 17 : 0);
+        positions.set(c.id, { x: 24 + column * columnStep, y, height, contracts, pending }); rowHeight = Math.max(rowHeight, height);
       });
-      y += rowHeight + 90;
+      row.forEach(c => positions.get(c.id).rowBottom = y + rowHeight);
+      y += rowHeight + 80;
     }
   }
-  const width = Math.min(3, Math.max(1, components.length)) * 290 + 80;
-  svg.setAttribute('viewBox', `0 0 ${width} ${Math.max(190, y)}`); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${version} architecture map`);
+  const columns = Math.min(2, Math.max(1, ...architectureLayers(components, allRelations).map(layer => layer.length))), width = columns * columnStep + 105;
+  const headingLines = lines(state.spec.title, columns === 1 ? 55 : 102), intentLines = lines(state.spec.intent, columns === 1 ? 55 : 102);
+  const notices = [state.report.fresh ? 'Source binding current' : 'Warning: source binding stale', `${version === 'current' ? 'Before' : 'Intended'} responsibilities · arrows point from caller to destination`];
+  if (state.report.uncovered?.length) notices.push(`Warning: ${state.report.uncovered.length} changed files are unexplained`);
+  if (state.report.staleEvidence?.length) notices.push(`Warning: ${state.report.staleEvidence.length} evidence records are stale`);
+  const unverified = state.spec.evidence.filter(e => e.status !== 'supported');
+  if (!state.spec.evidence.length) notices.push('Evidence: no verification recorded');
+  else notices.push(`Evidence: ${state.spec.evidence.filter(e => e.status === 'supported').length} supported records in the spec`);
+  if (unverified.length) notices.push(`Evidence: ${unverified.length} claims need verification`);
+  if (state.report.error) notices.push('Warning: ' + state.report.error);
+  for (const question of state.spec.unknowns) notices.push('Open question: ' + question);
+  notices.push('Blue border: responsibility differs between versions · dashed contract: only in one version');
+  const headerHeight = 30 + headingLines.length * 17 + intentLines.length * 17 + notices.reduce((sum, item) => sum + lines(item, columns === 1 ? 55 : 102).length * 17 + 5, 0) + 25;
+  for (const p of positions.values()) { p.y += headerHeight; p.rowBottom += headerHeight; }
+  svg.setAttribute('viewBox', `0 0 ${width} ${headerHeight + y + 20}`); svg.style.width = `${width}px`; svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${version} architecture map`);
+  let headerY = 25; headerY += textBlock(svg, state.spec.title, 24, headerY, 'map-title', columns === 1 ? 55 : 102) + 7;
+  headerY += textBlock(svg, state.spec.intent, 24, headerY, 'component-responsibility', columns === 1 ? 55 : 102) + 7;
+  for (const notice of notices) headerY += textBlock(svg, notice, 24, headerY, notice.startsWith('Warning') || notice.startsWith('Open question') ? 'map-warning' : 'map-legend', columns === 1 ? 55 : 102) + 5;
   const defs = make('defs', {}), marker = make('marker', { id: 'arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto-start-reverse' }); marker.append(make('path', { d: 'M 0 0 L 10 5 L 0 10 z', fill: '#58718d' })); defs.append(marker); svg.append(defs);
-  relations.forEach((r, index) => {
-    const a = positions.get(r.from), b = positions.get(r.to); if (!a || !b) return;
-    let path, labelX, labelY;
-    if (a.y < b.y && b.y - (a.y + a.height) <= 90) {
-      const x1 = a.x + 130, x2 = b.x + 130, mid = a.y + a.height + 35 + (index % 3) * 14;
-      path = `M ${x1} ${a.y + a.height} V ${mid} H ${x2} V ${b.y}`; labelX = (x1 + x2) / 2 + 12; labelY = mid - 6;
-    } else if (a.y === b.y && r.from !== r.to) {
-      const above = a.y - 16 - (index % 2) * 10;
-      path = `M ${a.x + 130} ${a.y} V ${above} H ${b.x + 130} V ${b.y}`; labelX = (a.x + b.x) / 2 + 130; labelY = above - 4;
-    } else {
-      const gutter = width - 35 + (index % 3) * 10, exit = a.y + a.height + 20, entry = b.y - 15;
-      path = `M ${a.x + 130} ${a.y + a.height} V ${exit} H ${gutter} V ${entry} H ${b.x + 130} V ${b.y}`; labelX = gutter - 10; labelY = (exit + entry) / 2;
-    }
-    const edge = make('g', {}); edge.append(make('title', {}, `${index + 1}. ${r.label}`), make('path', { d: path, class: 'edge', 'marker-end': 'url(#arrow)' }), make('text', { x: labelX, y: labelY, class: 'edge-label' }, String(index + 1))); svg.append(edge);
-  });
+  const edges = make('g', { class: 'map-edges' }); svg.append(edges);
   for (const c of components) {
-    const p = positions.get(c.id), g = make('g', { role: 'button', tabindex: '0', 'aria-label': `Inspect ${c.name}`, class: selected === c.id ? 'selected' : '', 'data-concept': c.id });
-    g.append(make('title', {}, `${c.name}: ${c[version]}`), make('rect', { x: p.x, y: p.y, width: 260, height: p.height, rx: 8 }));
-    p.name.forEach((line, i) => g.append(make('text', { x: p.x + 14, y: p.y + 26 + i * 19, class: 'component-name' }, line)));
-    p.responsibility.forEach((line, i) => g.append(make('text', { x: p.x + 14, y: p.y + 32 + p.name.length * 19 + i * 16, class: 'component-responsibility' }, line)));
+    const p = positions.get(c.id), changed = c.current.trim() !== c.intended.trim();
+    const g = make('g', { role: 'button', tabindex: '0', 'aria-label': `Inspect ${c.name}`, class: `${changed ? 'changed' : ''} ${selected === c.id ? 'selected' : ''}`, 'data-concept': c.id });
+    g.append(make('rect', { x: p.x, y: p.y, width: nodeWidth, height: p.height, rx: 10, class: 'component-card' }));
+    let cursor = p.y + 24;
+    cursor += textBlock(g, c.name, p.x + 16, cursor, 'component-name', 36) + 6;
+    cursor += textBlock(g, [c.kind || 'Type not recorded', c.technology || 'Technology not recorded'].join(' · '), p.x + 16, cursor, 'component-meta') + 5;
+    cursor += textBlock(g, changed ? 'Changed responsibility' : 'Same responsibility', p.x + 16, cursor, changed ? 'component-change' : 'component-meta') + 8;
+    cursor += textBlock(g, c[version] || 'Responsibility not recorded.', p.x + 16, cursor, 'component-responsibility') + 9;
+    if (changed) cursor += textBlock(g, version === 'intended' ? 'Previously: ' + (c.current || 'not recorded') : 'Intended: ' + (c.intended || 'not recorded'), p.x + 16, cursor, 'component-meta') + 8;
+    if (!c.observed.trim()) cursor += textBlock(g, 'Implementation not inspected', p.x + 16, cursor, 'map-warning') + 5;
+    for (const [label, value] of [['Boundary', c.boundary], ['Risk', c.risk]]) if (value) cursor += textBlock(g, `${label}: ${value}`, p.x + 16, cursor, label === 'Risk' ? 'map-warning' : 'component-meta') + 5;
+    for (const d of p.pending) cursor += textBlock(g, 'Decision needed: ' + d.title, p.x + 16, cursor, 'map-warning') + 5;
+    const contracts = p.contracts.filter(visible);
+    if (!contracts.length) cursor += textBlock(g, 'No outgoing contracts recorded in this view.', p.x + 16, cursor, 'component-meta');
+    for (const r of contracts) {
+      const port = make('g', { class: `contract-port ${r.state !== 'both' ? 'version-contract' : ''}`, 'data-relation': r.id });
+      port.append(make('line', { x1: p.x + 16, x2: p.x + nodeWidth - 16, y1: cursor, y2: cursor, class: 'contract-divider' })); cursor += 21;
+      const anchor = cursor;
+      cursor += textBlock(port, '→ ' + names.get(r.to), p.x + 16, cursor, 'contract-target') + 3;
+      cursor += textBlock(port, r.label, p.x + 16, cursor, 'contract-label') + 3;
+      if (r.protocol) cursor += textBlock(port, 'Protocol: ' + r.protocol, p.x + 16, cursor, 'component-meta');
+      if (r.failure) cursor += textBlock(port, 'On failure: ' + r.failure, p.x + 16, cursor, 'map-warning');
+      cursor += 9; g.append(port);
+      const b = positions.get(r.to); if (!b) continue;
+      const index = allRelations.indexOf(r), track = width - 65 + (index % 5) * 10;
+      let path;
+      if (p.y === b.y && p.x < b.x) path = `M ${p.x + nodeWidth} ${anchor} C ${p.x + nodeWidth + 35} ${anchor}, ${b.x - 35} ${b.y + 28}, ${b.x} ${b.y + 28}`;
+      else {
+        const exitX = p.x + nodeWidth + 20, exitY = p.rowBottom + 15 + (index % 4) * 12, entryY = b.y - 18 - (index % 3) * 12;
+        path = `M ${p.x + nodeWidth} ${anchor} H ${exitX} V ${exitY} H ${track} V ${entryY} H ${b.x + nodeWidth / 2} V ${b.y}`;
+      }
+      const edge = make('g', { 'data-edge': r.id }); edge.append(make('title', {}, `${c.name} → ${names.get(r.to)}: ${r.label}`), make('path', { d: path, class: `edge ${r.state !== 'both' ? 'version-edge' : ''}`, 'marker-end': 'url(#arrow)' })); edges.append(edge);
+    }
     g.onclick = () => choose(c.id); g.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(c.id); } }; svg.append(g);
   }
-  canvas.append(svg); wrap.append(canvas);
-  if (relations.length) {
-    wrap.append(el('h3', 'Boundary contracts'));
-    const contracts = el('ol', undefined, 'graph-contracts'), names = new Map(components.map(c => [c.id, c.name]));
-    for (const r of relations) { const item = el('li'); item.append(el('strong', `${names.get(r.from)} → ${names.get(r.to)}`), el('span', r.label)); contracts.append(item); }
-    wrap.append(contracts);
-  } else wrap.append(el('p', 'No interactions are recorded for this view.', 'fine'));
-  return wrap;
+  canvas.append(svg); wrap.append(canvas); return wrap;
 }
 function renderContent() {
   const content = $('#content'), s = state.spec; content.replaceChildren();

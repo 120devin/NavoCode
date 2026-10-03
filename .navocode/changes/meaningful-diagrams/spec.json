@@ -1,0 +1,233 @@
+{
+  "schemaVersion": "1.0",
+  "changeId": "meaningful-diagrams",
+  "title": "Architecture diagrams that explain the change",
+  "intent": "Make ownership, contracts, changes and consequential risks directly readable from the diagram.",
+  "baseRef": "1188146efe03491dcdac765c5fbf403db35c29ff",
+  "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838",
+  "groups": [
+    {
+      "id": "diagram-facts",
+      "title": "Self-explanatory architecture canvas",
+      "summary": "Keep review facts inside the diagram without numbered contract lookup.",
+      "componentIds": [
+        "author",
+        "diagram",
+        "server",
+        "validator",
+        "store",
+        "proposals"
+      ],
+      "decisionIds": [
+        "direct-understanding"
+      ],
+      "paths": [
+        "schema/spec.schema.json",
+        "skills/navocode/references/specs.md",
+        "ui/app.js",
+        "ui/style.css",
+        "tests/browser.e2e.js",
+        "tests/test_runtime.py"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "author",
+      "name": "Host assistant",
+      "kind": "actor",
+      "technology": "Host coding tools",
+      "boundary": "Local author session",
+      "current": "Describe high-level components and relations.",
+      "intended": "Record inspected ownership, contracts, boundaries and risks.",
+      "observed": "Specification guidance defines optional diagram facts and a canvas review checklist.",
+      "risk": "Missing facts must remain unknown rather than invented."
+    },
+    {
+      "id": "diagram",
+      "name": "Browser diagram",
+      "kind": "component",
+      "technology": "JavaScript / SVG",
+      "boundary": "Browser tab",
+      "current": "Show names, responsibility prose and numbered contract links.",
+      "intended": "Explain ownership, changes and outgoing contracts on canvas.",
+      "observed": "SVG cards expose full contracts, destination, protocol, failure, evidence warnings and unresolved decisions.",
+      "risk": "Readability still needs evaluation with software engineers."
+    },
+    {
+      "id": "server",
+      "name": "Workspace server",
+      "kind": "service",
+      "technology": "Python http.server",
+      "boundary": "Authenticated loopback HTTP",
+      "current": "Serve revision-bound specs, reports and feedback.",
+      "intended": "Serve revision-bound specs, reports and feedback.",
+      "observed": "Existing state endpoint forwards the enriched spec unchanged."
+    },
+    {
+      "id": "validator",
+      "name": "Spec validator",
+      "kind": "component",
+      "technology": "Python standard library",
+      "boundary": "Local runtime",
+      "current": "Validate responsibilities, relations and source binding.",
+      "intended": "Also validate optional technology, boundary, risk and failure facts.",
+      "observed": "Schema accepts optional diagram fields; existing Python shape validation enforces their types.",
+      "risk": "Shape and freshness checks cannot verify factual architecture quality."
+    },
+    {
+      "id": "store",
+      "name": "Spec and baseline files",
+      "kind": "datastore",
+      "technology": "JSON files",
+      "boundary": "Local checkout",
+      "current": "Store intent, recorded evidence and proposal baseline.",
+      "intended": "Store intent, recorded evidence and proposal baseline.",
+      "observed": "New metadata uses the existing atomic spec-file writer."
+    },
+    {
+      "id": "proposals",
+      "name": "Proposal engine",
+      "kind": "component",
+      "technology": "Python standard library",
+      "boundary": "Revision-bound review",
+      "current": "Preserve typed component and relation edits across adoption.",
+      "intended": "Preserve typed component and relation edits across adoption.",
+      "observed": "Regression test verifies optional diagram metadata survives create/apply."
+    }
+  ],
+  "relations": [
+    {
+      "id": "author-store",
+      "from": "author",
+      "to": "store",
+      "label": "Write inspected architecture facts",
+      "state": "both",
+      "protocol": "Atomic local file replacement",
+      "failure": "Keep the original file if replacement fails."
+    },
+    {
+      "id": "diagram-server",
+      "from": "diagram",
+      "to": "server",
+      "label": "GET spec, report and feedback state",
+      "state": "both",
+      "protocol": "Bearer-authenticated HTTP",
+      "failure": "401 without the session token; surface errors in the workspace."
+    },
+    {
+      "id": "server-validator",
+      "from": "server",
+      "to": "validator",
+      "label": "Validate spec shape and source binding",
+      "state": "both",
+      "protocol": "In-process Python call",
+      "failure": "Invalid spec fails the state request; inspection errors mark the report stale."
+    },
+    {
+      "id": "server-store",
+      "from": "server",
+      "to": "store",
+      "label": "Read current spec and review baseline",
+      "state": "both",
+      "protocol": "Local JSON read",
+      "failure": "Malformed or missing files fail the state request."
+    },
+    {
+      "id": "proposals-validator",
+      "from": "proposals",
+      "to": "validator",
+      "label": "Validate typed architectural operations",
+      "state": "both",
+      "protocol": "In-process Python call",
+      "failure": "Reject invalid fields and dangling references."
+    },
+    {
+      "id": "proposals-store",
+      "from": "proposals",
+      "to": "store",
+      "label": "Compare proposed edits with the saved baseline",
+      "state": "both",
+      "protocol": "Revision and digest binding",
+      "failure": "Reject stale or conflicting proposals before applying edits."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "direct-understanding",
+      "title": "Direct diagram understanding",
+      "category": "contracts",
+      "choice": "Show the facts needed for engineering review directly in the diagram, targeting 90% inferability.",
+      "alternatives": [
+        "Require reading separate responsibility and numbered contract lists."
+      ],
+      "consequences": [
+        "Component ownership, version changes and outgoing contracts stay visible on canvas.",
+        "Optional metadata keeps existing specs valid; absent facts are not fabricated.",
+        "Ninety percent is a human comprehension target; browser assertions do not establish it."
+      ],
+      "status": "accepted",
+      "provenance": "human",
+      "evidenceIds": [
+        "source-inspection",
+        "runtime-checks",
+        "browser-checks"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "source-inspection",
+      "kind": "source",
+      "status": "supported",
+      "claim": "Diagram facts are rendered from the spec without inventing absent metadata.",
+      "detail": "Inspected SVG text wrapping, contract ports, stable layout, schema properties, and local transport. The human explicitly requested that most information be inferable directly from the diagram.",
+      "paths": [
+        "schema/spec.schema.json",
+        "skills/navocode/references/specs.md",
+        "ui/app.js",
+        "ui/style.css",
+        "tests/browser.e2e.js",
+        "tests/test_runtime.py"
+      ],
+      "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838"
+    },
+    {
+      "id": "runtime-checks",
+      "kind": "test",
+      "status": "supported",
+      "claim": "Optional diagram metadata remains compatible with existing specs and proposals.",
+      "detail": "npm run check passed: JavaScript syntax checks and all 35 Python runtime tests, including optional metadata validation and proposal preservation.",
+      "paths": [
+        "tests/test_runtime.py"
+      ],
+      "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838"
+    },
+    {
+      "id": "browser-checks",
+      "kind": "test",
+      "status": "supported",
+      "claim": "Engineering facts can be located inside the SVG with no outside contract lookup.",
+      "detail": "npm run test:browser passed all 3 Chromium tests. Assertions locate purpose, responsibility, change, destination, protocol, failure, pending decision, uncertainty and evidence warnings inside the SVG; verify stable node geometry and long-label containment. Existing author/reviewer flows, cycles, self-loops, XSS-safe text and mobile page checks also pass. These are functional checks, not measured human comprehension.",
+      "paths": [
+        "tests/browser.e2e.js"
+      ],
+      "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838"
+    }
+  ],
+  "acceptanceCriteria": [
+    "The diagram shows purpose, owners, contract destinations, protocols and failures when recorded.",
+    "Changed nodes include the other version responsibility directly on canvas.",
+    "Layout stays fixed across Before and Intended.",
+    "Unresolved decisions, source/evidence limitations and open questions appear in the diagram.",
+    "Existing specs remain valid; missing type/technology is visibly not recorded.",
+    "Long labels, cycles, self-loops and keyboard contextual discussion continue working."
+  ],
+  "nonGoals": [
+    "Claiming 90% measured comprehension without engineer testing.",
+    "Fixing the independent PR-comparison coverage bug.",
+    "Inventing architecture metadata or changing acceptance provenance."
+  ],
+  "unknowns": [],
+  "supportingChanges": []
+}

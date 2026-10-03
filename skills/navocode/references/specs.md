@@ -25,3 +25,13 @@ Use architecture-level language. Cover data ownership, contracts, behavior, fail
 `baseRef` is a resolved comparison commit; retain it as source changes. `sourceDigest` binds to the tracked and nonignored source tree, excluding `.navocode/`. Run `CLI context` to get the current digest. After inspecting or executing evidence, put that digest on the evidence record. Record actual test command and outcome in `detail`. Re-run or re-inspect stale evidence; do not bulk relabel old evidence as current.
 
 The UI automatically reads the spec on refresh. Use atomic file replacement so it never sees half-written JSON. Source binding is not a correctness proof; `--ready` checks explicit completeness predicates, not arbitrary behavior.
+
+## Diagram that explains itself
+
+The diagram should answer most review questions directly: scope/intent, responsibility owners, internal/external boundaries, technology where known, who calls whom, the exchanged contract, what changes, failure behavior, unresolved decisions and evidence limitations. Treat “90% directly inferable” as a usability target, not a measured claim or validator guarantee.
+
+Keep `current` and `intended` concise ownership statements. Components can optionally record `kind` (`component`, `service`, `datastore`, `external`, `actor`), `technology`, `boundary`, and a consequential `risk`. Relations can optionally record `protocol` and `failure`. These fields are factual architectural claims: inspect the source before filling them; do not invent missing metadata. Common metadata applies to both views; describe version-specific differences in responsibilities or separate current/intended relations. Old specs remain valid and missing metadata remains visibly unknown.
+
+Each outgoing contract is displayed beside its source with its destination, full label and recorded protocol/failure. Keep relation direction consistent with the label; distinguish a request from a returned event. Use specific names and short action/data labels. Avoid repeating node responsibilities in contracts. Put a reliability decision in the relevant group's `decisionIds` so its unresolved status appears on the affected components. Preserve stable IDs so Before/Intended positions remain comparable.
+
+Before opening the workspace, inspect the diagram itself and answer: who owns the behavior/state, what crosses each boundary, what changed, what can fail, and which claims are unverified? If a consequential answer is missing, revise the spec or expose the uncertainty. Do not hide a material issue to make the canvas smaller.

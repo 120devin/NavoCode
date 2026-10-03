@@ -68,6 +68,16 @@ class RuntimeTests(unittest.TestCase):
         for mutate in (lambda s:s['groups'].append(s['groups'][0]),lambda s:s['relations'][0].update(to='missing'),lambda s:s['groups'][0]['paths'].append('../secret'),lambda s:s['components'][0].update(unexpected=True),lambda s:s['components'][0].update(intended=3),lambda s:s['decisions'][0]['evidenceIds'].append('missing')):
             with self.subTest(mutate=mutate):
                 spec = copy.deepcopy(self.spec); mutate(spec); self.assertTrue(core.validate_spec(spec))
+    def test_diagram_metadata_is_optional_validated_and_preserved_in_proposals(self):
+        core.assert_spec(self.spec)
+        extended=copy.deepcopy(self.spec)
+        extended['components'][0].update(kind='actor',technology='Browser',boundary='Client',risk='Stale ownership information.')
+        extended['relations'][0].update(protocol='HTTPS',failure='Return an authorization error.')
+        core.assert_spec(extended)
+        p=proposals.create(self.spec,extended,dict(headSha=core.head_of(self.repo)),'Expose inspected boundary contracts.')
+        self.assertEqual(proposals.apply(self.spec,p,core.head_of(self.repo)),extended)
+        extended['components'][0]['kind']='invented-kind'
+        self.assertTrue(core.validate_spec(extended))
     def test_draft_is_not_ready(self):
         draft = core.draft(self.repo,'new','New request','Design something'); self.assertTrue(draft['unknowns']); self.assertFalse(core.readiness(draft,self.repo)['ready'])
     def test_renames_and_deletions_have_coverage(self):

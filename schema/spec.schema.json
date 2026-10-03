@@ -136,6 +136,31 @@
           "observed": {
             "type": "string",
             "maxLength": 20000
+          },
+          "technology": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "boundary": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "risk": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "component",
+              "service",
+              "datastore",
+              "external",
+              "actor"
+            ]
           }
         }
       },
@@ -178,6 +203,16 @@
               "intended",
               "both"
             ]
+          },
+          "protocol": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "failure": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
           }
         }
       },

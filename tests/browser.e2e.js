@@ -62,14 +62,49 @@ test('browser reviewer: compare edits, publish intent, no direct implementation 
   f.spec.relations.push({ id: 'billing-loop', from: 'billing', to: 'billing', label: 'Retry pending feedback', state: 'intended' });
   f.spec.components.push({ id: 'audit', name: 'Independent audit adapter', current: 'Read local state.', intended: 'Inspect persisted events without owning policy.', observed: '' });
   jsonWrite(f.path, f.spec);
-  await page.locator('.graph-contracts').getByText(longContract, { exact: true }).waitFor();
+  await page.locator('.graph').getByText(longContract, { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Inspect Independent audit adapter' }).waitFor();
   assert.equal(await page.locator('.graph svg [data-concept]').count(), 4);
   await page.getByRole('button', { name: 'Before', exact: true }).click();
-  assert.equal(await page.locator('.graph-contracts').getByText(longContract, { exact: true }).count(), 0);
+  assert.equal(await page.locator('.graph').getByText(longContract, { exact: true }).count(), 0);
   await page.getByRole('button', { name: 'Intended', exact: true }).click();
-  await page.locator('.graph-contracts').getByText(longContract, { exact: true }).waitFor();
+  await page.locator('.graph').getByText(longContract, { exact: true }).waitFor();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.ok(await page.locator('body').evaluate(el => el.scrollWidth <= window.innerWidth + 1));
   await page.screenshot({ path: '/tmp/navocode-review-mobile-test.png', fullPage: true });
+});
+
+
+test('diagram alone exposes ownership, contract, change, failure and uncertainty with stable positions', async t => {
+  const f = fixture(t), sessionPath = join(f.repo, '.navocode/local/session.json');
+  Object.assign(f.spec.components[2], { kind: 'component', technology: 'Python', boundary: 'Local billing policy', risk: 'Delegated payer may be ineligible.' });
+  Object.assign(f.spec.relations[1], { protocol: 'In-process call', failure: 'Reject an ineligible delegated payer.' });
+  f.spec.decisions[0].status = 'proposed'; f.spec.decisions[0].provenance = 'agent';
+  f.spec.unknowns = ['How do existing clients migrate?'];
+  f.spec.evidence[0].status = 'unverified'; jsonWrite(f.path, f.spec);
+  const { server, session } = await startServer({ specPath: f.path, repo: f.repo, sessionPath });
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(session.url); await page.getByRole('heading', { name: f.spec.title }).waitFor();
+  const graph = page.locator('.graph');
+  for (const text of [f.spec.title, f.spec.intent, f.spec.components[2].intended, 'component · Python', 'Previously: ' + f.spec.components[2].current, 'Boundary: Local billing policy', 'Risk: Delegated payer may be ineligible.', '→ Billing service', 'Delegated payer', 'Protocol: In-process call', 'On failure: Reject an ineligible delegated payer.', 'Decision needed: Who owns eligibility policy?', 'Open question: How do existing clients migrate?', 'Evidence: 1 claims need verification']) await graph.getByText(text, { exact: true }).first().waitFor();
+  assert.ok(await graph.getByText('Changed responsibility', { exact: true }).count());
+  assert.equal(await page.locator('.graph-contracts').count(), 0);
+  const positions = () => graph.locator('[data-concept] > .component-card').evaluateAll(nodes => nodes.map(n => ['x', 'y', 'height'].map(key => n.getAttribute(key))));
+  const intendedPositions = await positions();
+  await page.getByRole('button', { name: 'Before', exact: true }).click();
+  assert.deepEqual(await positions(), intendedPositions);
+  assert.equal(await graph.getByText('Delegated payer', { exact: true }).count(), 0);
+  await page.getByRole('button', { name: 'Intended', exact: true }).click();
+  assert.deepEqual(await positions(), intendedPositions);
+  f.spec.relations[1].label = 'W'.repeat(120); jsonWrite(f.path, f.spec);
+  await graph.locator('[data-relation="account-billing"] .contract-label').filter({ hasText: 'WWW' }).waitFor();
+  const overflow = await graph.locator('[data-concept]').evaluateAll(nodes => nodes.some(n => {
+    const card = n.querySelector('.component-card').getBBox();
+    return [...n.querySelectorAll('text')].some(t => { const b = t.getBBox(); return b.x < card.x || b.x + b.width > card.x + card.width || b.y + b.height > card.y + card.height; });
+  }));
+  assert.equal(overflow, false);
+  assert.deepEqual(errors, []);
 });
