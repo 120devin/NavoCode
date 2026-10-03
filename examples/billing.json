@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "changeId": "delegated-billing",
+  "title": "Delegated billing ownership",
+  "intent": "Let enterprise accounts delegate billing to another account while keeping ownership and eligibility responsibilities explicit.",
+  "baseRef": "HEAD",
+  "sourceDigest": "",
+  "groups": [
+    { "id": "ownership", "title": "Account ownership", "summary": "Account management exposes who owns the account and which account pays. Billing policy stays at the billing boundary.", "componentIds": ["accounts", "billing"], "decisionIds": ["policy-owner"], "paths": [] },
+    { "id": "migration", "title": "Client compatibility", "summary": "Existing clients keep their current ownership contract while delegated ownership is introduced explicitly.", "componentIds": ["clients", "accounts"], "decisionIds": ["migration-contract"], "paths": [] }
+  ],
+  "components": [
+    { "id": "clients", "name": "Client applications", "current": "Send the account owner as the payer.", "intended": "May provide a separate billing owner while keeping existing requests valid.", "observed": "Demo only: implementation has not been inspected." },
+    { "id": "accounts", "name": "Account management", "current": "Own account identity and a single owner reference.", "intended": "Own account identity and delegation. Expose ownership facts to billing.", "observed": "Demo only: implementation has not been inspected." },
+    { "id": "billing", "name": "Billing service", "current": "Evaluate eligibility for the account owner.", "intended": "Evaluate eligibility for the delegated billing owner.", "observed": "Demo only: implementation has not been inspected." }
+  ],
+  "relations": [
+    { "id": "client-account", "from": "clients", "to": "accounts", "label": "Ownership contract", "state": "both" },
+    { "id": "account-billing", "from": "accounts", "to": "billing", "label": "Delegated payer", "state": "intended" }
+  ],
+  "decisions": [
+    { "id": "policy-owner", "title": "Who owns eligibility policy?", "choice": "Billing owns eligibility; account management supplies ownership facts.", "alternatives": ["Account management duplicates eligibility checks.", "A separate policy service owns eligibility."], "consequences": ["Billing is the single policy owner.", "The delegation contract crosses service boundaries."], "status": "proposed", "provenance": "agent", "evidenceIds": [] },
+    { "id": "migration-contract", "title": "How do existing clients migrate?", "choice": "Preserve the owner field and add an optional billing owner.", "alternatives": ["Require all clients to migrate to a new contract."], "consequences": ["Old clients continue using the account owner for billing."], "status": "proposed", "provenance": "agent", "evidenceIds": [] }
+  ],
+  "evidence": [],
+  "acceptanceCriteria": ["Delegation does not move billing policy into account management.", "Existing client requests remain valid."],
+  "nonGoals": ["Changing payment processing providers."],
+  "unknowns": ["This is an illustrative demo, not a verified implementation."],
+  "supportingChanges": []
+}

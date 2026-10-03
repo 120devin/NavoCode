@@ -1,0 +1,372 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "NavoCode change specification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "changeId",
+    "title",
+    "intent",
+    "baseRef",
+    "sourceDigest",
+    "groups",
+    "components",
+    "relations",
+    "decisions",
+    "evidence",
+    "acceptanceCriteria",
+    "nonGoals",
+    "unknowns",
+    "supportingChanges"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "changeId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 20000,
+      "minLength": 1
+    },
+    "intent": {
+      "type": "string",
+      "maxLength": 20000,
+      "minLength": 1
+    },
+    "baseRef": {
+      "type": "string",
+      "maxLength": 20000,
+      "minLength": 1
+    },
+    "sourceDigest": {
+      "type": "string",
+      "maxLength": 20000
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "summary",
+          "componentIds",
+          "decisionIds",
+          "paths"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "summary": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "componentIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+            },
+            "maxItems": 2000
+          },
+          "decisionIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+            },
+            "maxItems": 2000
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000,
+              "minLength": 1
+            },
+            "maxItems": 2000
+          }
+        }
+      },
+      "maxItems": 2000
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "current",
+          "intended",
+          "observed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "current": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "intended": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "observed": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "maxItems": 2000
+    },
+    "relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "from",
+          "to",
+          "label",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "to": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "current",
+              "intended",
+              "both"
+            ]
+          }
+        }
+      },
+      "maxItems": 2000
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "choice",
+          "alternatives",
+          "consequences",
+          "status",
+          "provenance",
+          "evidenceIds"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "choice": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000,
+              "minLength": 1
+            },
+            "maxItems": 2000
+          },
+          "consequences": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000,
+              "minLength": 1
+            },
+            "maxItems": 2000
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "accepted"
+            ]
+          },
+          "provenance": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "human"
+            ]
+          },
+          "evidenceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+            },
+            "maxItems": 2000
+          }
+        }
+      },
+      "maxItems": 2000
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "claim",
+          "kind",
+          "status",
+          "detail",
+          "paths",
+          "sourceDigest"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
+          },
+          "claim": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "source",
+              "test",
+              "inference"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "unverified",
+              "failed"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 20000,
+              "minLength": 1
+            },
+            "maxItems": 2000
+          },
+          "sourceDigest": {
+            "type": "string",
+            "maxLength": 20000
+          }
+        }
+      },
+      "maxItems": 2000
+    },
+    "acceptanceCriteria": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000,
+        "minLength": 1
+      },
+      "maxItems": 2000
+    },
+    "nonGoals": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000,
+        "minLength": 1
+      },
+      "maxItems": 2000
+    },
+    "unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 20000,
+        "minLength": 1
+      },
+      "maxItems": 2000
+    },
+    "supportingChanges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "reason"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 20000,
+            "minLength": 1
+          }
+        }
+      },
+      "maxItems": 2000
+    }
+  }
+}

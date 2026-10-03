@@ -2,161 +2,177 @@
 
 **The human interface to an AI-maintained codebase.**
 
-NavoCode lets humans design, understand, change, and review software through an interactive architectural representation. Your coding agent reads and edits the code underneath. Your normal workflow stays in NavoCode—from the first idea through PR review and acceptance.
+Design, understand, change, and review software through an interactive architecture workspace. Your coding assistant reads and modifies the code underneath. Humans work with responsibilities, contracts, decisions, and tradeoffs instead of raw diffs.
 
-**Status:** This repository currently documents the product design. The UI, integrations, installer, and commands described here are planned and are not available to run yet.
+NavoCode **0.1.0** includes a working CLI, local browser UI, portable assistant skill, Claude Code plugin, and GitHub review proposals. It has no runtime npm dependencies, model API calls, account, or hosted database. Your existing assistant does the reasoning.
 
-## Intent
+## Install
 
-The core idea is that humans interact with this layer instead of code.
+You need **Node.js 20+** and **Git**. Reviewing or publishing GitHub proposals also requires the [GitHub CLI](https://cli.github.com/) authenticated with access to the repository (`gh auth login`).
 
-You work with responsibilities, boundaries, contracts, data ownership, behaviors, and tradeoffs. The agent handles implementation details, tests, and Git operations. NavoCode connects human intent to the implementation through structured specifications.
+From a checkout of this repository, install the skill into the project you want to work on:
 
-This requires more than diagrams. The interface must explain the complete change, let you explore alternatives, capture your decisions, and show whether the agent's implementation matches the accepted design. Authors and reviewers get the same interactive experience.
-
-Source references remain available for audit and exceptional investigation. Reading code or raw diffs must not be a required step in the normal human workflow.
-
-## What the workspace shows
-
-A PR opens as an architectural change map, grouped by purpose rather than by file or function. A large PR might include “change account ownership,” “move billing responsibility,” and “introduce an external integration.” Each group can be expanded without turning the overview into a giant graph.
-
-The workspace combines:
-
-- Before-and-after diagrams of responsibilities and interactions.
-- Intended behavior, reasons for changes, and effects on other groups.
-- Decisions, alternatives, tradeoffs, contracts, and migration choices.
-- Evidence of implementation and testing, with uncertainty shown clearly.
-- Interactive controls to ask questions, propose alternatives, and accept a design.
-
-Every changed file must be accounted for underneath this representation. Supporting changes are summarized; unexplained changes appear as gaps. Humans see complete coverage without navigating file-by-file.
-
-Select a responsibility and say:
-
-> Keep billing policy in the billing service. Account management should expose ownership information and delegate billing decisions. Show the consequences before implementing.
-
-Your agent revises the design in the same workspace. You explore the result, refine it, and request implementation when satisfied.
-
-## The complete workflow
-
-```mermaid
-flowchart TD
-    A[Describe a change to your assistant] --> B[Agent generates specs and opens NavoCode]
-    B --> C[Understand and refine the architecture]
-    C --> D[Accept the design and request implementation]
-    D --> E[Agent updates code and specs, then pushes the PR]
-    E --> F[Reviewer opens the PR with their own assistant]
-    F --> G[Reviewer explores and proposes architectural edits]
-    G --> H[Agent posts a specification proposal on the PR]
-    H --> I[Author accepts or revises the proposal in NavoCode]
-    I --> D
+```sh
+node bin/navocode.js install --host codex --project /path/to/your-project
 ```
 
-NavoCode makes no LLM calls. Your existing assistant reasons, implements, and tests. NavoCode supplies the specification format, interactive workspace, validation, and feedback transport.
+Replace `codex` with `claude`, `cursor`, or `copilot`. The installer copies a self-contained skill and runtime into the project. It does not require a global CLI installation or modify your existing assistant instructions. Start a new assistant session after installation.
 
-## Installation
-
-Once implemented, the intended setup is to ask your assistant:
-
-> Install NavoCode from https://github.com/120devin/NavoCode for this project. Configure it for manual invocation.
-
-For every PR:
-
-> Install NavoCode for this project and use it whenever you prepare or update a PR.
-
-The planned installer adds a skill or plugin, preserves existing configuration, and checks whether the assistant can receive UI feedback. Project-scoped installation lets the team use the same workflow.
-
-| Assistant | Planned integration | Invocation |
+| Assistant | Installed location | How to invoke |
 | --- | --- | --- |
-| Claude Code | Plugin with author/review skills and a feedback adapter | `/navocode:author`, `/navocode:review`, or a natural-language request |
-| Codex | Project skill in `.agents/skills/navocode/`; optional plugin packaging | Select the NavoCode skill or ask Codex to use it |
-| Cursor | Project skill in `.cursor/skills/navocode/`; optional plugin packaging | `/navocode` or a natural-language request |
-| GitHub Copilot CLI | Project skill in `.github/skills/navocode/` and a feedback adapter | Ask Copilot to author or review using NavoCode |
-| GitHub Copilot on GitHub | Repository instructions and specs consumed by an enabled cloud agent | Mention `@copilot` with the requested task |
-| Other assistants | Portable skill, CLI, and compatible feedback adapter | Ask the assistant to run the workflow |
+| Codex | `.agents/skills/navocode/` | Select the NavoCode skill or ask to use NavoCode |
+| Claude Code | `.claude/skills/navocode/` | `/navocode` or ask to use NavoCode |
+| Cursor | `.cursor/skills/navocode/` | `/navocode` or ask to use NavoCode |
+| Copilot CLI | `.github/skills/navocode/` | Ask to use the NavoCode skill |
 
-Each integration must demonstrate a working UI → agent → updated UI loop. Skill discovery alone is insufficient. Released documentation will identify complete interactive integrations and limited artifact-only integrations.
+The project skill contains the CLI, UI, schema, and workflow instructions. You can commit that directory to share the same version with your team. Reinstallation and uninstall refuse to overwrite locally edited skill files.
 
-GitHub's cloud-agent route depends on its eligibility, repository settings, and permissions. It does not automatically provide NavoCode's interactive panel inside GitHub. See the official [Claude plugin](https://code.claude.com/docs/en/plugins), [Codex skill](https://learn.chatgpt.com/docs/build-skills), [Cursor skill](https://cursor.com/docs/skills), and [Copilot cloud-agent](https://docs.github.com/en/copilot/how-tos/use-copilot-agents/cloud-agent/use-cloud-agent-on-github) documentation.
+```sh
+node bin/navocode.js uninstall --host codex --project /path/to/your-project
+```
+
+### Native Claude Code plugin
+
+Load this checkout directly as a plugin:
+
+```sh
+claude --plugin-dir /absolute/path/to/NavoCode
+```
+
+Then invoke `/navocode:navocode` with your authoring request or PR URL. The repository also contains a Claude marketplace manifest for distribution. No MCP server is required.
+
+### Optional global CLI
+
+From this checkout:
+
+```sh
+npm install -g .
+navocode help
+```
+
+The skill installer also works without this step. NavoCode has not been published to the npm registry; do not assume `npm install -g navocode` installs this project.
 
 ## Author a change
 
 Tell your assistant:
 
-> Use NavoCode to design delegated billing ownership for enterprise accounts. Show the responsibilities, contracts, and migration choices before implementing.
+> Use NavoCode to design delegated billing ownership. Show responsibilities, contracts, and migration choices before implementing.
 
-The agent inspects the codebase and opens a draft architecture in NavoCode. You explore the design and adjust it through diagrams, decision controls, and conversation. The workspace distinguishes proposed behavior from behavior already implemented.
+The agent inspects the project, generates structured specs, and opens a **local HTML/CSS/JavaScript workspace in your browser**. The workspace shows:
 
-When ready:
+- A whole-change map grouped by architectural purpose.
+- Before-and-after responsibility diagrams and connections.
+- Decisions, alternatives, consequences, and acceptance criteria.
+- Observed implementation, evidence, and unresolved questions.
+- A feedback area connected to your active assistant.
 
-> Implement this accepted design, verify it, and prepare the PR with its NavoCode specs.
+Select a component or decision and suggest a change:
 
-The agent changes code, runs relevant checks, and reconciles the implementation with the design. NavoCode shows the resulting architectural change and evidence. The agent pushes code and specs together when authorized through your existing assistant workflow.
+> Billing should own eligibility policy. Account management should only expose ownership facts. Explain the effect on the migration.
 
-### Make it part of every PR
+Your agent receives the feedback through the CLI, updates the specs, and explains the result in the same UI. You can ask questions, accept the design, and request implementation there.
 
-Project configuration guides supported assistants to enter NavoCode when preparing or updating a PR. Native hooks can automate entry where supported. An optional deterministic CI check can require current, valid specs.
-
-CI does not invoke a model or generate architectural understanding. Automatic invocation must be tested for each assistant; a configuration file alone cannot guarantee it.
+The agent then updates source code, runs checks, and reconciles the observed implementation with the accepted architecture. Code and specs under `.navocode/changes/` are committed and pushed together through the assistant's existing Git tools and your authorization.
 
 ## Review a PR
 
-In your own assistant:
+In your assistant:
 
-> Use NavoCode to review https://github.com/OWNER/REPO/pull/123. Open the full architectural change and explain the decisions.
+> Use NavoCode to review https://github.com/OWNER/REPO/pull/123.
 
-The agent fetches the PR and specs, checks their revision, and opens the same workspace used by the author. You do not manually pull the branch or read its raw diff. The agent fetches source or prepares a temporary checkout as needed underneath the experience.
+The agent fetches the exact PR revision into a temporary checkout and opens the same workspace. You do not manually pull the branch or read the raw diff. If the PR has no specs, the agent creates a clearly labeled inferred draft.
 
-Suggest a change:
+Suggest architectural edits and inspect them in **Proposed edits**. When ready, choose **Publish proposal**. The agent prepares and posts a GitHub timeline comment containing:
 
-> Move permission decisions into the authorization boundary. Compare that alternative with the current proposal, including migration and client compatibility.
+- The suggested architecture and rationale.
+- The affected concepts.
+- The PR revision and specification binding.
+- Structured specification edits for another agent to read.
 
-Explore and refine the result, then say:
+Publishing a proposal does not change the PR's implementation. Outdated proposals are rejected when the PR head or spec has changed.
 
-> Post this as a NavoCode proposal on the PR.
+The author can then ask:
 
-Your agent publishes a readable proposal with structured specification edits. Publication does not change the original PR's implementation.
+> Open the NavoCode proposal at COMMENT_URL and implement the architectural changes I accept.
 
-## What the team sees on GitHub
+The agent validates the proposal, updates the spec, implements accepted intent, verifies it, and pushes code and specs. Missing or inferred baseline specs require author reconciliation before automatic adoption.
 
-The PR contains an architectural summary, supported diagram previews, spec references, and instructions for opening the interactive workspace through an assistant. GitHub comments carry proposal discussion; the assistant-connected workspace supplies the full interaction.
+GitHub displays the comment, architecture summary, and Mermaid previews. The full interactive workspace runs through the assistant and local browser; it is not embedded in GitHub's PR page.
 
-A proposal comment includes:
+## Prefer NavoCode for every PR
 
-> **NavoCode proposal: centralize permission decisions**
->
-> **Based on:** PR #123, head `abc123…`, specification revision `…`
->
-> **Change:** Move permission decisions from account management into authorization.
->
-> **Reason:** Keep policy ownership consistent across entry points.
->
-> **Consequences:** A new contract dependency; migration must preserve client behavior.
->
-> **Status:** Proposed; implementation has not changed.
->
-> **Structured edits:** Included in a collapsible machine-readable section.
+```sh
+node bin/navocode.js install --host codex --project /path/to/your-project --pr-mode always
+```
 
-The author or an authorized maintainer asks their assistant:
+This adds a PR preference to the installed skill's discovery instructions. It is agent guidance, not an enforced hook. Invocation still depends on the host loading and following skills.
 
-> Open the proposal at COMMENT_URL in NavoCode. Show its effect on the current PR and implement the changes I accept.
+For deterministic artifact checks, an existing project CI workflow can run:
 
-The agent checks whether the proposal still applies, presents conflicting or changed assumptions, and updates code and specs after adoption. A result comment links the resulting revision.
+```sh
+navocode validate --repo . --spec .navocode/changes/CHANGE_ID/spec.json --ready
+```
 
-Large proposals can reference specification-only artifacts or branches. Private content stays in appropriately private artifacts. A generated HTML snapshot is a browsing fallback, not a live agent session.
+The CLI must first be installed in that CI environment. Validation does not invoke a model or generate missing specs.
 
-An enabled GitHub cloud agent can also receive requests from write-authorized contributors through `@copilot`. Its capabilities are documented separately; the full interactive reviewer experience requires a compatible assistant integration.
+## Try the UI
 
-## What lives where
+From this checkout:
 
-This repository will contain the shared schema, deterministic core, UI, CLI, skills, host adapters, and optional GitHub validation workflow.
+```sh
+node bin/navocode.js demo --open
+```
 
-Consuming projects keep accepted specs under `.navocode/`. Code and specs travel together in Git. Review proposals and discussion live in GitHub comments or linked artifacts.
+This opens an illustrative billing architecture in a temporary Git repository. It is useful for exploring the UI; it does not start an AI agent. For a live session, ask your assistant to use the skill.
 
-There is no NavoCode account, hosted database, model key, or inference backend. A local UI process can hold temporary session data. Durable collaboration records live in Git and GitHub.
+## How the agent uses the CLI
 
-MCP is optional. The baseline uses skills, CLI tools, and a supported feedback bridge. A host-specific MCP adapter can be added where useful.
+The agent normally runs these commands for you:
 
-The representation must expose uncertainty and missing evidence rather than hide them. Specs do not prove arbitrary implementation correctness; the agent must support claims with relevant checks and show unresolved gaps in human-readable terms.
+```sh
+# Create an explicitly unverified draft, then fill it from source inspection.
+navocode init --repo . --id billing --title "Billing ownership" \
+  --intent "Support delegated billing" --base HEAD
+
+# Open the architectural workspace.
+navocode start --repo . --spec .navocode/changes/billing/spec.json --open
+
+# Receive UI feedback, revise the spec, and acknowledge it.
+navocode feedback --session /returned/path/session.json --wait 25
+navocode ack --session /returned/path/session.json --event EVENT_ID \
+  --message "The architecture now keeps policy in billing."
+
+# Check source binding, coverage, evidence, and readiness.
+navocode validate --repo . --spec .navocode/changes/billing/spec.json --ready
+
+# Fetch a PR for review without touching the user's working branch.
+navocode review https://github.com/OWNER/REPO/pull/123
+```
+
+Run `navocode help` for proposal creation, publication, adoption, summaries, and session commands. `navocode schema` outputs the complete specification schema.
+
+## What is verified and what is limited
+
+Automated tests cover spec validation, source freshness, changed-file accounting, proposal conflicts, comment API behavior, self-contained installation for all four host layouts, browser feedback, and a complete author/reviewer/adoption lifecycle using a local Git remote. Claude's own validator checks the plugin and marketplace manifests.
+
+The interactive loop requires an **active assistant turn** that runs the feedback command. A browser click cannot wake an idle assistant by itself. If the host stops, ask it to resume the NavoCode session; no manual copying of UI feedback is needed while the local process remains alive.
+
+The current release uses an external local browser. Native embedded assistant panels and automatic GitHub cloud-agent interaction are not included. Host packaging tests do not establish end-to-end behavior in every assistant; see [testing and compatibility](docs/TESTING.md) for the exact verification scope.
+
+Specs expose architectural intent and evidence; they cannot prove arbitrary code correctness. Source and test evidence are checked for freshness, and open questions remain visible. Source inspection stays available for exceptional investigation, while the normal human workflow stays in NavoCode.
+
+Accepted specs live in Git. Published proposals live in GitHub. Browser sessions and uncommitted feedback are temporary; stopping the process discards that session's feedback queue.
+
+## Development
+
+```sh
+npm ci
+npm run check
+npx playwright install chromium
+npm run test:browser
+```
+
+The runtime uses Node built-ins and browser APIs. Playwright is a development-only dependency. This repository's GitHub workflow runs the automated suite on Linux.
 
 ## License
 

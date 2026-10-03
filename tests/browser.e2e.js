@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { chromium } from '@playwright/test';
+import { startServer, sessionRequest } from '../src/server.js';
+import { fixture } from './helpers.js';
+import { jsonWrite } from '../src/core.js';
+import { join } from 'node:path';
+
+test('browser author: explore, send feedback, receive agent revision, accept, request implementation', async t => {
+  const f = fixture(t), sessionPath = join(f.repo, '.navocode/local/session.json');
+  const { server, session } = await startServer({ specPath: f.path, repo: f.repo, sessionPath });
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1100 } });
+  const errors = []; page.on('pageerror', e => errors.push(e.message));
+  await page.goto(session.url); await page.getByRole('heading', { name: f.spec.title }).waitFor();
+  await page.getByRole('button', { name: 'Inspect Billing service' }).click();
+  await page.getByRole('heading', { name: 'Billing service', exact: true }).waitFor();
+  await page.getByLabel('Describe a question or architectural change').fill('Keep eligibility in authorization and charging in billing.');
+  await page.getByRole('button', { name: 'Suggest change', exact: true }).click();
+  const event = (await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0];
+  assert.equal(event.target, 'billing'); assert.equal(event.action, 'change');
+  f.spec.components[2].intended = 'Own charging and delegate eligibility to authorization.'; jsonWrite(f.path, f.spec);
+  await sessionRequest(sessionPath, '/api/ack', { id: event.id, message: 'Billing now delegates eligibility to authorization.' });
+  await page.getByText('Billing now delegates eligibility to authorization.', { exact: true }).waitFor();
+  await page.getByText(f.spec.components[2].intended, { exact: true }).first().waitFor();
+  await page.getByRole('button', { name: 'Accept design', exact: true }).click();
+  const accepted = (await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0]; assert.equal(accepted.action, 'accept');
+  await sessionRequest(sessionPath, '/api/ack', { id: accepted.id, message: 'Design accepted.' });
+  await page.getByRole('button', { name: 'Implement accepted design', exact: true }).click();
+  assert.equal((await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0].action, 'implement');
+  await page.screenshot({ path: '/tmp/navocode-author-test.png', fullPage: true });
+  assert.deepEqual(errors, []);
+});
+
+test('browser reviewer: compare edits, publish intent, no direct implementation action, safe text rendering', async t => {
+  const f = fixture(t), sessionPath = join(f.repo, '.navocode/local/session.json'), baseline = join(f.repo, '.navocode/local/baseline.json'); jsonWrite(baseline, f.spec);
+  const { server, session } = await startServer({ specPath: f.path, repo: f.repo, mode: 'review', sessionPath, baselinePath: baseline });
+  t.after(() => { server.closeAllConnections(); server.close(); });
+  const browser = await chromium.launch({ headless: true }); t.after(() => browser.close());
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.goto(session.url); await page.getByRole('heading', { name: f.spec.title }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Implement accepted design' }).count(), 0);
+  f.spec.decisions[0].choice = 'A dedicated boundary owns policy <img src=x onerror=alert(1)>.'; jsonWrite(f.path, f.spec);
+  await page.getByRole('button', { name: 'Proposed edits' }).click();
+  await page.getByText(f.spec.decisions[0].choice, { exact: true }).waitFor();
+  assert.equal(await page.locator('img').count(), 0);
+  await page.getByRole('button', { name: 'Publish proposal' }).click();
+  assert.equal((await sessionRequest(sessionPath, '/api/feedback?wait=2')).events[0].action, 'publish');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(await page.locator('body').evaluate(el => el.scrollWidth <= window.innerWidth + 1));
+  await page.screenshot({ path: '/tmp/navocode-review-mobile-test.png', fullPage: true });
+});

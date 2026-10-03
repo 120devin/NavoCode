@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>NavoCode</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header><a class="brand" href="/">N<span>↗</span></a><div><strong>NavoCode</strong><span class="subtitle">Architecture workspace</span></div><div class="header-right"><span id="mode" class="pill"></span><span id="connection" role="status">Connecting…</span></div></header>
+<div id="error" role="alert" hidden></div>
+<div class="shell">
+<aside class="sidebar"><p class="eyebrow">CHANGE MAP</p><button id="overview" class="group active">Whole change</button><nav id="groups" aria-label="Architectural groups"></nav><div class="sidebar-note">Shape the architecture.<br>Your agent handles the code.</div></aside>
+<main>
+<section class="intro"><p class="eyebrow" id="scope">WHOLE CHANGE</p><h1 id="title">Loading your architecture</h1><p id="intent" class="lead"></p><div id="health" class="health"></div></section>
+<nav class="tabs" aria-label="Workspace view"><button data-tab="architecture" class="active">Architecture</button><button data-tab="decisions">Decisions <span id="decision-count"></span></button><button data-tab="evidence">Assurance</button><button data-tab="proposal">Proposed edits</button></nav>
+<div id="content"></div>
+<section class="conversation"><div class="section-heading"><h2>Work with your agent</h2><span id="feedback-target" class="muted">Whole change</span></div><div id="messages" aria-live="polite"></div><form id="feedback-form"><label for="feedback">Describe a question or architectural change</label><textarea id="feedback" placeholder="Move policy ownership into billing. What does that change for existing clients?" rows="3" maxlength="20000"></textarea><div class="actions"><button type="submit" class="primary" data-action="change">Suggest change</button><button type="button" data-action="ask">Ask a question</button><button type="button" data-action="accept">Accept design</button><button type="button" data-action="implement">Implement accepted design</button><button type="button" data-action="publish" hidden>Publish proposal</button><button type="button" data-action="done" class="quiet">Finish session</button></div></form><p class="fine">Feedback goes to your active coding agent. Acceptance updates design intent; implementation and publication are separate actions.</p></section>
+</main><aside id="inspector" class="inspector" aria-label="Architecture details"></aside>
+</div><script type="module" src="/app.js"></script>
+</body></html>

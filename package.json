@@ -1,0 +1,38 @@
+{
+  "name": "navocode",
+  "version": "0.1.0",
+  "description": "Interactive architecture authoring and PR review for coding agents",
+  "type": "module",
+  "bin": {
+    "navocode": "bin/navocode.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/120devin/NavoCode.git"
+  },
+  "files": [
+    "bin",
+    "src",
+    "ui",
+    "schema",
+    "skills",
+    ".claude-plugin",
+    "examples",
+    "README.md",
+    "LICENSE",
+    "docs/TESTING.md"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "test:browser": "node --test tests/browser.e2e.js",
+    "check": "node --check bin/navocode.js && node --check ui/app.js && npm test",
+    "demo": "node bin/navocode.js demo --open"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "navocode",
+  "owner": {
+    "name": "NavoCode contributors"
+  },
+  "plugins": [
+    {
+      "name": "navocode",
+      "source": "./",
+      "description": "Interactive architecture authoring and review",
+      "version": "0.1.0"
+    }
+  ],
+  "metadata": {
+    "description": "Interactive architecture authoring and PR review for coding agents"
+  }
+}

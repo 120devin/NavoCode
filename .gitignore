@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# NavoCode / Node
+node_modules/
+*.tgz
+test-results/
+playwright-report/
+.navocode/local/
