@@ -1,0 +1,271 @@
+{
+  "schemaVersion": "1.0",
+  "changeId": "python-one-page-review",
+  "title": "Python runtime and one-page architectural review",
+  "intent": "Keep engineers in control of architectural choices through one visible review while assistants use a portable Python runtime.",
+  "baseRef": "b73fb7d9c9961aed8f79fe5394f8c001ce17c89c",
+  "sourceDigest": "sha256:40513492d2e96e97fd4ee40ad063021cb2bcecc99f10070622e0eed01d296d4c",
+  "groups": [
+    {
+      "id": "python-runtime",
+      "title": "Python runtime and distribution",
+      "summary": "Move backend behavior and portable installation to Python while preserving proposal contracts.",
+      "componentIds": [
+        "runtime",
+        "integration",
+        "proposals"
+      ],
+      "decisionIds": [
+        "runtime-language"
+      ],
+      "paths": [
+        ".claude-plugin/marketplace.json",
+        ".claude-plugin/plugin.json",
+        ".github/workflows/test.yml",
+        "README.md",
+        "bin/navocode.js",
+        "bin/navocode.py",
+        "docs/TESTING.md",
+        "package-lock.json",
+        "package.json",
+        "skills/navocode/SKILL.md",
+        "skills/navocode/scripts/navocode.py",
+        "src/core.js",
+        "src/github.js",
+        "src/install.js",
+        "src/navocode/__init__.py",
+        "src/navocode/cli.py",
+        "src/navocode/core.py",
+        "src/navocode/github.py",
+        "src/navocode/install.py",
+        "src/navocode/proposals.py",
+        "src/navocode/server.py",
+        "src/proposals.js",
+        "src/schema.js",
+        "src/server.js",
+        "tests/browser.e2e.js",
+        "tests/core.test.js",
+        "tests/helpers.js",
+        "tests/install.test.js",
+        "tests/lifecycle.test.js",
+        "tests/proposals.test.js",
+        "tests/test_runtime.py",
+        "tests/transport.test.js"
+      ]
+    },
+    {
+      "id": "review-experience",
+      "title": "One-page architecture review",
+      "summary": "Use the supplied logo and keep the full review visible with contextual discussion.",
+      "componentIds": [
+        "workspace"
+      ],
+      "decisionIds": [
+        "review-surface"
+      ],
+      "paths": [
+        "ui/app.js",
+        "ui/index.html",
+        "ui/logo.png",
+        "ui/style.css"
+      ]
+    },
+    {
+      "id": "engineer-ownership",
+      "title": "Engineer decision control",
+      "summary": "Expose consequential choices and require human acceptance before implementation.",
+      "componentIds": [
+        "decisions",
+        "workspace",
+        "runtime"
+      ],
+      "decisionIds": [
+        "engineer-acceptance"
+      ],
+      "paths": [
+        "schema/spec.schema.json",
+        "skills/navocode/references/decisions.md",
+        "skills/navocode/references/specs.md"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "runtime",
+      "name": "Portable assistant runtime",
+      "current": "Backend behavior runs in Node.js.",
+      "intended": "Run deterministic backend behavior in Python using the standard library; retain browser JavaScript and an npm compatibility launcher.",
+      "observed": "Implemented in src/navocode and bin/navocode.py; the Node launcher forwards to Python."
+    },
+    {
+      "id": "workspace",
+      "name": "Architecture workspace",
+      "current": "Reviewers switch tabs and select components to see details.",
+      "intended": "Show decisions first, followed by the map, all responsibilities, evidence and proposal comparison on one page.",
+      "observed": "All sections render together; selecting a concept sets feedback context without hiding the review."
+    },
+    {
+      "id": "decisions",
+      "name": "Engineer-owned decisions",
+      "current": "Human provenance is not required for implementation requests.",
+      "intended": "Require accepted decisions with human provenance for implementation events and briefs.",
+      "observed": "UI, implementation endpoint, brief and readiness validator check recorded human acceptance."
+    },
+    {
+      "id": "proposals",
+      "name": "Reviewer proposals",
+      "current": "Exact-head review and structured comments are implemented in JavaScript.",
+      "intended": "Preserve revision-bound proposals, idempotent publication, conflict detection and spec-only adoption in Python.",
+      "observed": "Regression tests cover proposal conflicts, mocked GitHub APIs and a local Git author/reviewer/adoption lifecycle."
+    },
+    {
+      "id": "integration",
+      "name": "Assistant installation",
+      "current": "Four host layouts bundle a Node runtime with a nested discoverable skill.",
+      "intended": "Bundle a self-contained Python runtime with one discoverable skill, keeping compatibility commands.",
+      "observed": "Four installer layouts and packed Python runner tested. Native Claude manifests validate; host discovery and active turns remain host-dependent."
+    }
+  ],
+  "relations": [
+    {
+      "id": "agent-runtime",
+      "from": "integration",
+      "to": "runtime",
+      "label": "Bundled skill commands",
+      "state": "both"
+    },
+    {
+      "id": "runtime-workspace",
+      "from": "runtime",
+      "to": "workspace",
+      "label": "Specs, feedback and responses",
+      "state": "both"
+    },
+    {
+      "id": "human-decisions",
+      "from": "workspace",
+      "to": "decisions",
+      "label": "Architectural acceptance",
+      "state": "both"
+    },
+    {
+      "id": "review-proposals",
+      "from": "runtime",
+      "to": "proposals",
+      "label": "Revision-bound edits",
+      "state": "both"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "runtime-language",
+      "title": "Runtime language",
+      "category": "boundaries",
+      "choice": "Use Python for the backend and direct skills; retain browser JavaScript and npm compatibility.",
+      "alternatives": [
+        "Keep the Node.js backend."
+      ],
+      "consequences": [
+        "Direct use requires Python 3.10+ and Git with no pip dependencies.",
+        "npm compatibility and browser development tests still require Node.js."
+      ],
+      "status": "accepted",
+      "provenance": "human",
+      "evidenceIds": [
+        "runtime-tests",
+        "browser-tests"
+      ]
+    },
+    {
+      "id": "review-surface",
+      "title": "Review surface",
+      "category": "boundaries",
+      "choice": "Show the complete review on one page.",
+      "alternatives": [
+        "Keep separate architecture, decision and assurance tabs."
+      ],
+      "consequences": [
+        "Reviewers can scan all sections without navigation.",
+        "Large changes require scrolling; groups should remain at architectural responsibility level."
+      ],
+      "status": "accepted",
+      "provenance": "human",
+      "evidenceIds": [
+        "runtime-tests",
+        "browser-tests"
+      ]
+    },
+    {
+      "id": "engineer-acceptance",
+      "title": "Architectural acceptance",
+      "category": "contracts",
+      "choice": "Engineers accept consequential choices before implementation.",
+      "alternatives": [
+        "Allow agent-provenance accepted decisions to unlock implementation."
+      ],
+      "consequences": [
+        "Recorded decisions without human acceptance block implementation.",
+        "The gate checks recorded claims; it cannot prove the agent captured every issue or recorded acceptance truthfully."
+      ],
+      "status": "accepted",
+      "provenance": "human",
+      "evidenceIds": [
+        "runtime-tests",
+        "browser-tests"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "runtime-tests",
+      "kind": "test",
+      "claim": "Python runtime regression tests pass.",
+      "detail": "Clean checkout: python3 -B -m unittest discover -s tests -p test_*.py passed 32 tests for bindings, gates, transport, installation, proposals and Git lifecycle.",
+      "paths": [
+        "tests/test_runtime.py"
+      ],
+      "status": "supported",
+      "sourceDigest": "sha256:40513492d2e96e97fd4ee40ad063021cb2bcecc99f10070622e0eed01d296d4c"
+    },
+    {
+      "id": "browser-tests",
+      "kind": "test",
+      "claim": "Author/reviewer browser tests pass.",
+      "detail": "Same clean checkout: npm run test:browser passed 2 Chromium tests for all-sections review, feedback, acceptance gate, proposals, safe rendering and mobile width.",
+      "paths": [
+        "tests/browser.e2e.js"
+      ],
+      "status": "supported",
+      "sourceDigest": "sha256:40513492d2e96e97fd4ee40ad063021cb2bcecc99f10070622e0eed01d296d4c"
+    },
+    {
+      "id": "source-inspection",
+      "kind": "source",
+      "claim": "Backend behavior lives in Python and browser interaction remains JavaScript.",
+      "detail": "Inspected CLI, server, validators, installer and UI. No model client or hosted database was introduced. Human requests authorize Python migration, one-page review and engineer ownership; local coding details remain agent-owned.",
+      "paths": [
+        "src/navocode/cli.py",
+        "src/navocode/server.py",
+        "src/navocode/core.py",
+        "src/navocode/install.py",
+        "ui/app.js"
+      ],
+      "status": "supported",
+      "sourceDigest": "sha256:40513492d2e96e97fd4ee40ad063021cb2bcecc99f10070622e0eed01d296d4c"
+    }
+  ],
+  "acceptanceCriteria": [
+    "Direct CLI and installed skills work without Node.js or runtime packages.",
+    "Decisions, architecture, responsibilities and evidence are available on one page.",
+    "Recorded decisions require human acceptance before implementation events or briefs.",
+    "Reviewer proposals remain bound to PR head and source/spec digests and do not mutate PR code.",
+    "The supplied logo is used unchanged."
+  ],
+  "nonGoals": [
+    "Waking idle assistants automatically.",
+    "Adding model calls, hosted state or embedded GitHub interactive panels.",
+    "Implementing the separate local sample of agent-activity states."
+  ],
+  "unknowns": [],
+  "supportingChanges": []
+}
