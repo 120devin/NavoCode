@@ -251,6 +251,19 @@
               "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$"
             },
             "maxItems": 2000
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "boundaries",
+              "data",
+              "contracts",
+              "security",
+              "reliability",
+              "migration",
+              "operations",
+              "cost"
+            ]
           }
         }
       },

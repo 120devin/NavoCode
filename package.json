@@ -1,6 +1,6 @@
 {
   "name": "navocode",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Interactive architecture authoring and PR review for coding agents",
   "type": "module",
   "bin": {
@@ -27,7 +27,7 @@
     "docs/TESTING.md"
   ],
   "scripts": {
-    "test": "node --test tests/*.test.js",
+    "test": "python3 -B -m unittest discover -s tests -p \"test_*.py\"",
     "test:browser": "node --test tests/browser.e2e.js",
     "check": "node --check bin/navocode.js && node --check ui/app.js && npm test",
     "demo": "node bin/navocode.js demo --open"
