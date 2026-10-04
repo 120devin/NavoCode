@@ -35,3 +35,15 @@ Keep `current` and `intended` concise ownership statements. Components can optio
 Prefer a holistic end-to-end flow: compact named components, dependency stages, and labeled arrows showing requests, data movement and protocols. Keep component responsibilities, risks and failure detail in supporting sections or tooltips rather than expanded component cards. The overview should reveal the entry points, internal handoffs and outcomes together. Keep relation direction consistent with the label; distinguish a request from a returned event. Use specific names and short action/data labels. Avoid repeating node responsibilities in contracts. Put a reliability decision in the relevant group's `decisionIds` so its unresolved status appears on the affected components. Preserve stable IDs so Before/Intended positions remain comparable.
 
 Before opening the workspace, inspect the diagram itself and answer: where does the flow enter, which components process it, what crosses each connection, where does it end, what changed, and which decisions or claims remain unresolved? If a consequential answer is missing, revise the spec or expose the uncertainty. Do not hide a material issue to make the canvas smaller.
+
+## Execution scenarios
+
+Record representative execution paths in optional `scenarios`. Each has an `id`, `title`, `trigger`, `outcome`, and ordered `current` / `intended` step arrays. Each step has a stable `id`, a `relationId`, and an optional short `description`. An empty version means that path is not recorded for that version. Steps must connect: each destination must be the next source. Refer only to relations available in that version. Add explicit return relations to show responses. Do not turn a dependency graph into an invented execution sequence.
+
+Use separate scenarios for success, rejection, and retry paths when they matter. Record what starts each path and what the caller receives. Repeated relations can represent retries, with distinct step IDs. Include a state change or external side effect in the relevant contract. A scenario is a recorded explanation, not an execution trace from production.
+
+Relations can link `paths`, `evidenceIds`, and `decisionIds`. These links must refer to inspected source paths and recorded evidence/decisions. The reviewer can select a connection to inspect its contract, failure behavior, references, and decisions, then send feedback about that step. Do not label evidence as supported solely because its link exists.
+
+## Clear review text
+
+Use [ASD-STE100-inspired writing guidance](writing.md) for summaries, diagram labels, decisions, and test reports. This is an adapted style, not a claim of standard compliance. The workspace reports sentence-length warnings in Assurance. These warnings do not block readiness or change the author's text.

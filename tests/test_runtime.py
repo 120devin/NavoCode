@@ -78,6 +78,33 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(proposals.apply(self.spec,p,core.head_of(self.repo)),extended)
         extended['components'][0]['kind']='invented-kind'
         self.assertTrue(core.validate_spec(extended))
+    def flow_spec(self):
+        spec = copy.deepcopy(self.spec)
+        spec['relations'] += [dict(id='bill-result', **{'from':'billing','to':'accounts'}, label='Return the billing result', state='intended'), dict(id='response', **{'from':'accounts','to':'clients'}, label='Return the response', state='both')]
+        spec['scenarios'] = [dict(id='pay', title='Submit billing', trigger='The client submits an account.', outcome='The client receives the result.', current=[dict(id='request',relationId='client-account'),dict(id='response',relationId='response')], intended=[dict(id='request',relationId='client-account'),dict(id='bill',relationId='account-billing'),dict(id='result',relationId='bill-result'),dict(id='response',relationId='response')])]
+        spec['relations'][0].update(paths=['billing.txt'],evidenceIds=['source-check'],decisionIds=['policy-owner'])
+        return spec
+    def test_execution_scenarios_validate_and_survive_proposals(self):
+        spec = self.flow_spec(); core.assert_spec(spec)
+        p = proposals.create(self.spec,spec,dict(headSha=core.head_of(self.repo)),'Explain the complete billing path.')
+        self.assertEqual(proposals.apply(self.spec,p,core.head_of(self.repo)),spec)
+        summary = core.summary(spec)
+        self.assertIn('sequenceDiagram',summary); self.assertIn('Return the response',summary)
+        self.assertIn('Execution flows',core.brief(spec))
+        original = copy.deepcopy(spec); del original['scenarios']
+        remove = proposals.create(spec,original,dict(headSha=core.head_of(self.repo)),'Remove the recorded path.')
+        self.assertEqual(proposals.apply(spec,remove,core.head_of(self.repo))['scenarios'],[])
+    def test_execution_scenarios_reject_inconsistent_paths_and_links(self):
+        for mutate in (lambda s:s['scenarios'][0]['intended'][0].update(relationId='missing'), lambda s:s['scenarios'][0]['current'].append(dict(id='bad',relationId='account-billing')), lambda s:s['scenarios'][0]['intended'].reverse(), lambda s:s['scenarios'][0]['intended'].append(s['scenarios'][0]['intended'][0]), lambda s:s['relations'][0]['paths'].append('../secret'), lambda s:s['relations'][0]['evidenceIds'].append('missing'), lambda s:s['relations'][0]['decisionIds'].append('missing'), lambda s:s['scenarios'][0].update(current=[],intended=[])):
+            with self.subTest(mutate=mutate):
+                spec=self.flow_spec();mutate(spec);self.assertTrue(core.validate_spec(spec))
+    def test_writing_checks_are_advisory_and_preserve_text(self):
+        from navocode.writing import check_writing
+        spec=self.flow_spec();spec['intent']=' '.join(['word']*26)+'.';spec['scenarios'][0]['intended'][0]['description']=' '.join(['action']*21)+'.'
+        before=copy.deepcopy(spec);warnings=check_writing(spec)
+        self.assertTrue(any(w['field']=='intent' and w['limit']==25 for w in warnings))
+        self.assertTrue(any(w['limit']==20 for w in warnings));self.assertEqual(spec,before)
+        core.assert_spec(spec)
     def test_draft_is_not_ready(self):
         draft = core.draft(self.repo,'new','New request','Design something'); self.assertTrue(draft['unknowns']); self.assertFalse(core.readiness(draft,self.repo)['ready'])
     def test_renames_and_deletions_have_coverage(self):

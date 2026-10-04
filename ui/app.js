@@ -1,7 +1,8 @@
 const $ = selector => document.querySelector(selector);
-const token = location.hash.slice(1) || sessionStorage.getItem('navocode-token');
-if (token) { sessionStorage.setItem('navocode-token', token); history.replaceState(null, '', '/'); }
-let state, selected = null, version = 'intended', lastSignature = '';
+const hashToken = location.hash.slice(1);
+const token = /^[a-f0-9]{48}$/.test(hashToken) ? hashToken : sessionStorage.getItem('navocode-token');
+if (token) { sessionStorage.setItem('navocode-token', token); if (hashToken === token) history.replaceState(null, '', '/'); }
+let state, selected = null, version = 'intended', lastSignature = '', scenarioId = null, traceIndex = -1;
 const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
 const error = message => { $('#error').textContent = message; $('#error').hidden = !message; };
 async function api(path, body) {
@@ -11,18 +12,24 @@ async function api(path, body) {
 const badge = (text, type = '') => el('span', text, `badge ${type}`);
 function list(items) { const ul = el('ul'); for (const item of items) ul.append(el('li', item)); return ul; }
 function panel(title, id) { const node = el('section', undefined, 'panel'); if (id) node.id = id; node.append(el('h2', title)); return node; }
-function targetLabel() { return ['components', 'decisions', 'groups'].flatMap(k => state.spec[k]).find(x => x.id === selected)?.name || ['components', 'decisions', 'groups'].flatMap(k => state.spec[k]).find(x => x.id === selected)?.title || 'Whole change'; }
+function targetLabel() { const item = ['components', 'decisions', 'groups', 'relations', 'scenarios'].flatMap(k => state.spec[k] || []).find(x => x.id === selected); return item?.name || item?.title || item?.label || 'Whole change'; }
+
 function choose(id, focus = true) {
   selected = id;
   $('#feedback-target').textContent = targetLabel(); $('#clear-target').hidden = !selected;
   document.querySelectorAll('[data-concept]').forEach(n => n.classList.toggle('selected', n.dataset.concept === selected));
+  renderContractDetails();
+  const steps = state.spec.scenarios?.find(s => s.id === scenarioId)?.[version] || [];
+  document.querySelectorAll('[data-trace]').forEach(b => { b.disabled = b.dataset.trace === '-1' ? traceIndex <= 0 : traceIndex >= steps.length - 1 || !steps.length; });
+  if ($('#trace-status')) $('#trace-status').textContent = traceIndex < 0 ? 'Full flow' : `Step ${traceIndex + 1} of ${steps.length}`;
+  document.querySelectorAll('[data-step-index]').forEach(n => { n.classList.toggle('trace-active', Number(n.dataset.stepIndex) === traceIndex); n.classList.toggle('trace-muted', traceIndex >= 0 && Number(n.dataset.stepIndex) !== traceIndex); });
   // Preserve the page position and every review section when selecting feedback context.
   if (focus) $('#feedback').focus({ preventScroll: true });
 }
 function discuss(id, name) { const b = el('button', name || 'Discuss', 'quiet'); b.onclick = () => choose(id); return b; }
 function render() {
   const { spec, report, mode } = state;
-  if (selected && !['components', 'decisions', 'groups'].some(k => spec[k].some(x => x.id === selected))) selected = null;
+  if (selected && !['components', 'decisions', 'groups', 'relations', 'scenarios'].some(k => (spec[k] || []).some(x => x.id === selected))) selected = null;
   $('#title').textContent = spec.title; $('#intent').textContent = spec.intent; $('#mode').textContent = mode === 'author' ? 'Authoring' : 'Review';
   $('#health').replaceChildren(badge(report.fresh ? 'Source binding current' : 'Source binding stale', report.fresh ? 'good' : 'warning'), badge(`${spec.groups.length} architectural groups`), badge(`${spec.unknowns.length} open questions`, spec.unknowns.length ? 'warning' : ''));
   if (report.uncovered?.length) $('#health').append(badge(`${report.uncovered.length} unexplained files`, 'warning'));
@@ -36,6 +43,10 @@ function render() {
   implement.disabled = pending.length > 0;
   implement.title = pending.length ? 'Accept architectural decisions before requesting implementation.' : '';
   $('#proposal-link').hidden = !state.baseline;
+  if (scenarioId === null) scenarioId = spec.scenarios?.[0]?.id || '';
+  if (scenarioId && !spec.scenarios?.some(s => s.id === scenarioId)) { scenarioId = ''; traceIndex = -1; }
+  const flow = spec.scenarios?.find(s => s.id === scenarioId);
+  if (traceIndex >= (flow?.[version]?.length || 0)) traceIndex = -1;
   renderContent(); renderMessages(); choose(selected, false);
 }
 // Collapse cycles before assigning dependency layers; input order is only a tie-breaker.
@@ -138,7 +149,8 @@ function graph(components) {
       }
       const edge = make('g', { 'data-edge': r.id });
       edge.append(make('title', {}, `${c.name} → ${names.get(r.to)}: ${r.label}${r.failure ? ' · On failure: ' + r.failure : ''}`), make('path', { d: path, class: `edge ${r.state !== 'both' ? 'version-edge' : ''}`, 'marker-end': 'url(#arrow)' })); edges.append(edge);
-      const label = make('g', { 'data-relation': r.id, class: 'flow-contract' });
+      const label = make('g', { 'data-relation': r.id, 'data-concept': r.id, role: 'button', tabindex: '0', 'aria-label': `Inspect contract: ${r.label}`, class: 'flow-contract' });
+      label.onclick = () => choose(r.id, false); label.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(r.id, false); } };
       label.append(make('rect', { x: p.x, y: labelY - 14, width: nodeWidth, height: p.lanes[slot] - 9, rx: 4, class: 'flow-label-background' }));
       let cursor = labelY; cursor += textBlock(label, r.label, p.x + 8, cursor, 'contract-label', 26);
       if (r.protocol) textBlock(label, r.protocol, p.x + 8, cursor, 'component-meta', 26);
@@ -148,7 +160,7 @@ function graph(components) {
   svg.append(labels);
   for (const c of components) {
     const p = positions.get(c.id), changed = c.current.trim() !== c.intended.trim();
-    const g = make('g', { role: 'button', tabindex: '0', 'aria-label': `Inspect ${c.name}`, class: `${changed ? 'changed' : ''} ${selected === c.id ? 'selected' : ''}`, 'data-concept': c.id });
+    const g = make('g', { role: 'button', tabindex: '0', 'aria-label': `Inspect ${c.name}`, class: `component-node ${changed ? 'changed' : ''} ${selected === c.id ? 'selected' : ''}`, 'data-concept': c.id });
     g.append(make('title', {}, [c[version], c.boundary && 'Boundary: ' + c.boundary, c.risk && 'Risk: ' + c.risk].filter(Boolean).join(' · ')));
     g.append(make('rect', { x: p.x, y: p.y, width: nodeWidth, height: p.height, rx: 10, class: 'component-card' }));
     let cursor = p.y + 25; cursor += textBlock(g, c.name, p.x + 12, cursor, 'component-name', 24) + 4;
@@ -159,15 +171,91 @@ function graph(components) {
   canvas.append(svg); wrap.append(canvas); return wrap;
 }
 
+function scenarioGraph(scenario) {
+  const ns = 'http://www.w3.org/2000/svg', canvas = el('div', undefined, 'graph scenario-graph');
+  const make = (tag, attrs, text) => { const n = document.createElementNS(ns, tag); for (const [key, value] of Object.entries(attrs)) n.setAttribute(key, value); if (text !== undefined) n.textContent = text; return n; };
+  const measure = document.createElement('canvas').getContext('2d'); if (measure) measure.font = `600 15px ${getComputedStyle(document.body).fontFamily}`;
+  const lines = (text, width) => {
+    const output = []; let line = '';
+    for (const word of text.trim().split(/\s+/)) {
+      if (line && measure.measureText(line + ' ' + word).width > width) { output.push(line + ' '); line = ''; }
+      for (const ch of (line ? ' ' : '') + word) { if (line && measure.measureText(line + ch).width > width) { output.push(line); line = ''; } line += ch; }
+    }
+    if (line) output.push(line); return output;
+  };
+  const text = (parent, value, x, y, cls, width) => {
+    const chunks = lines(value, width), n = make('text', { x, y, class: cls });
+    chunks.forEach((chunk, i) => n.append(make('tspan', {x, dy:i ? 17 : 0}, chunk))); parent.append(n); return chunks.length * 17;
+  };
+  const relations = new Map(state.spec.relations.map(r => [r.id, r]));
+  const participants = [...new Set([...scenario.current, ...scenario.intended].flatMap(step => { const r = relations.get(step.relationId); return [r.from, r.to]; }))];
+  const width = Math.max(490, participants.length * 175 + 40), positions = new Map(participants.map((id, i) => [id, 35 + i * 175]));
+  const svg = make('svg', {role:'img', 'aria-label':`${version} execution flow`}); svg.style.width = `${width}px`;
+  let y = 25; y += text(svg, scenario.title, 20, y, 'map-title', width - 45) + 7;
+  y += text(svg, 'Trigger: ' + scenario.trigger, 20, y, 'component-responsibility', width - 45) + 5;
+  y += text(svg, 'Result: ' + scenario.outcome, 20, y, 'component-responsibility', width - 45) + 15;
+  const top = y, headerHeight = Math.max(...participants.map(id => lines(state.spec.components.find(c => c.id === id).name, 125).length * 17 + 32)); y += headerHeight + 25;
+  const slots = [];
+  for (let i = 0; i < Math.max(scenario.current.length, scenario.intended.length); i++) {
+    const height = Math.max(...['current','intended'].map(v => { const step = scenario[v][i]; if (!step) return 0; const r = relations.get(step.relationId); return 55 + lines(r.label, width - 65).length * 17 + lines(step.description || '', width - 65).length * 17 + (r.from === r.to ? 25 : 0); }));
+    slots.push({y, height}); y += height;
+  }
+  if (!scenario[version].length) text(svg, `No ${version === 'current' ? 'Before' : 'Intended'} steps recorded for this scenario.`, 20, (slots[0]?.y || y) + 20, 'map-warning', width - 45);
+  const defs = make('defs', {}), marker = make('marker', {id:'flow-arrow', viewBox:'0 0 10 10', refX:9, refY:5, markerWidth:6, markerHeight:6, orient:'auto'}); marker.append(make('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#58718d'})); defs.append(marker); svg.append(defs);
+  for (const id of participants) {
+    const c = state.spec.components.find(c => c.id === id), x = positions.get(id), g = make('g', {role:'button',tabindex:0,'aria-label':`Inspect ${c.name}`,'data-concept':id,class:'component-node'});
+    g.append(make('line',{x1:x+72.5,x2:x+72.5,y1:top+headerHeight,y2:y,class:'flow-lifeline'}), make('rect',{x,y:top,width:145,height:headerHeight,rx:8,class:'component-card'})); text(g,c.name,x+10,top+25,'component-name',125);
+    g.onclick=()=>choose(id); g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(id);}}; svg.append(g);
+  }
+  scenario[version].forEach((step,i)=>{
+    const r=relations.get(step.relationId), slot=slots[i], x=positions.get(r.from)+72.5, target=positions.get(r.to)+72.5;
+    const other=scenario[version==='current'?'intended':'current'].find(s=>s.id===step.id), changed=other?.relationId!==step.relationId || other?.description!==step.description;
+    const g=make('g',{role:'button',tabindex:0,'aria-label':`Step ${i+1}: ${r.label}`,'data-concept':r.id,'data-relation':r.id,'data-step-index':i,class:`flow-step ${changed?'changed':''}`});
+    g.append(make('rect',{x:15,y:slot.y-12,width:width-30,height:slot.height-10,rx:5,class:'step-background'}));
+    let cursor=slot.y+5; cursor+=text(g,`${i+1}. ${r.label}`,25,cursor,'contract-label',width-65)+10;
+    const path=x===target?`M ${x} ${cursor} h 55 v 20 h -55`:`M ${x} ${cursor} H ${target}`;
+    g.append(make('path',{d:path,class:'edge','marker-end':'url(#flow-arrow)'})); cursor+=x===target?45:25;
+    if(step.description) text(g,step.description,25,cursor,'component-meta',width-65);
+    g.onclick=()=>{traceIndex=i;choose(r.id,false);}; g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();traceIndex=i;choose(r.id,false);}}; svg.append(g);
+  });
+  svg.setAttribute('viewBox',`0 0 ${width} ${y+20}`); canvas.append(svg); return canvas;
+}
+function renderContractDetails() {
+  const box = $('#contract-details'); if (!box || !state) return;
+  box.replaceChildren(); const r = state.spec.relations.find(r => r.id === selected);
+  if (!r) { box.append(el('p','Select a connection to inspect its contract and evidence.','fine')); return; }
+  const name = id => state.spec.components.find(c => c.id === id).name;
+  box.append(el('h3',`${name(r.from)} → ${name(r.to)}`),el('p',r.label),el('p',`Protocol: ${r.protocol || 'Not recorded'}`),el('p',`On failure: ${r.failure || 'Not recorded'}`));
+  const paths = r.paths || []; box.append(el('h4','Source references'), paths.length ? list(paths) : el('p','No source references recorded.'));
+  box.append(el('h4','Evidence'));
+  const evidence = state.spec.evidence.filter(e => r.evidenceIds?.includes(e.id));
+  if (!evidence.length) box.append(el('p','No evidence linked to this contract.','warning-text'));
+  for (const e of evidence) box.append(badge(`${e.status}${state.report.staleEvidence?.includes(e.id) ? ' · stale' : ''}`,e.status==='supported'&&!state.report.staleEvidence?.includes(e.id)?'good':'warning'),el('p',e.claim),el('p',e.detail));
+  for (const d of state.spec.decisions.filter(d=>r.decisionIds?.includes(d.id))) box.append(el('h4',d.title),el('p',d.choice),discuss(d.id,'Discuss this decision'));
+  box.append(discuss(r.id,'Discuss this step'));
+}
 function renderContent() {
   const content = $('#content'), s = state.spec; content.replaceChildren();
   const map = panel('Architecture', 'architecture'), heading = el('div', undefined, 'section-heading'), segmented = el('div', undefined, 'segmented');
   heading.append(map.firstChild);
-  for (const value of ['current', 'intended']) { const b = el('button', value === 'current' ? 'Before' : 'Intended', value === version ? 'active' : ''); b.onclick = () => { version = value; renderContent(); }; segmented.append(b); }
+  for (const value of ['current', 'intended']) { const b = el('button', value === 'current' ? 'Before' : 'Intended', value === version ? 'active' : ''); b.onclick = () => { version = value; traceIndex = -1; renderContent(); choose(selected, false); }; segmented.append(b); }
   heading.append(segmented); map.append(heading);
-  if (s.components.length) map.append(graph(s.components)); else map.append(el('p', 'The agent is still mapping this architecture.'));
+  if (s.scenarios?.length) {
+    const controls = el('div', undefined, 'flow-controls'), select = el('select'); select.id = 'scenario'; select.setAttribute('aria-label','Execution scenario');
+    const overview = el('option','Architecture overview'); overview.value=''; select.append(overview);
+    for (const f of s.scenarios) { const option=el('option',f.title); option.value=f.id; select.append(option); }
+    select.value=scenarioId || ''; select.onchange=()=>{scenarioId=select.value;traceIndex=-1;selected=null;renderContent();choose(null,false);}; controls.append(select);
+    const flow=s.scenarios.find(f=>f.id===scenarioId), steps=flow?.[version] || [];
+    if (flow) {
+      for (const [label,delta] of [['Previous step',-1],['Next step',1]]) { const b=el('button',label); b.type='button'; b.dataset.trace=delta; b.disabled=delta<0?traceIndex<=0:traceIndex>=steps.length-1||!steps.length; b.onclick=()=>{traceIndex+=delta;selected=steps[traceIndex].relationId;renderContent();choose(selected,false);};controls.append(b); }
+      const reset=el('button','Show full flow'); reset.onclick=()=>{traceIndex=-1;selected=null;renderContent();choose(null,false);};controls.append(reset);
+      const status=el('span',traceIndex<0?'Full flow':`Step ${traceIndex+1} of ${steps.length}`,'fine');status.id='trace-status';status.setAttribute('role','status');controls.append(status);
+      map.append(controls,el('p','Blue arrows: changed or selected steps. Select a step to inspect its contract.','fine'),scenarioGraph(flow),discuss(flow.id,'Discuss this flow'));
+    } else map.append(controls,graph(s.components));
+  } else if (s.components.length) map.append(graph(s.components)); else map.append(el('p', 'The agent is still mapping this architecture.'));
   map.append(el('p', 'The whole architecture stays visible. Select a concept only when you want to discuss it.', 'fine'));
-  content.append(map);
+  const details=el('div',undefined,'contract-details'); details.id='contract-details'; details.setAttribute('aria-live','polite'); map.append(details);
+  content.append(map); renderContractDetails();
   const groups = el('div', undefined, 'group-summaries');
   for (const g of s.groups) { const p = panel(g.title); p.dataset.concept = g.id; p.append(el('p', g.summary), discuss(g.id, 'Discuss this area')); groups.append(p); }
   content.append(groups);
@@ -200,6 +288,7 @@ function renderContent() {
   assurance.append(el('h3', 'Implementation evidence'));
   if (!s.evidence.length) assurance.append(el('p', 'No evidence recorded. Claims are not yet verified.'));
   for (const e of s.evidence) { const row = el('article', undefined, 'evidence-row'); row.append(badge(`${e.kind} · ${e.status}`, e.status === 'supported' && !state.report.staleEvidence?.includes(e.id) ? 'good' : 'warning'), el('h4', e.claim), el('p', e.detail)); if (state.report.staleEvidence?.includes(e.id)) row.append(el('p', 'This evidence refers to an older source revision.', 'warning-text')); assurance.append(row); }
+  if (state.report.writingWarnings?.length) { const writing=el('details'); writing.append(el('summary',`${state.report.writingWarnings.length} sentences need a length review`),el('p','These checks measure sentence length. They do not check STE compliance or technical accuracy.'),list(state.report.writingWarnings.map(w=>`${w.field}: ${w.message}`))); assurance.append(writing); }
   if (state.report.uncovered?.length) assurance.append(el('h3', 'Changes still needing explanation'), list(state.report.uncovered));
   if (s.nonGoals.length) assurance.append(el('h3', 'Out of scope'), list(s.nonGoals));
   content.append(assurance);
@@ -208,11 +297,11 @@ function renderContent() {
 }
 function renderProposal(content, spec, baseline) {
   const section = panel('Proposed edits', 'proposal'); let count = 0;
-  const display = v => v === undefined ? 'Absent' : Array.isArray(v) ? v.map(x => typeof x === 'object' ? `${x.path}: ${x.reason}` : x).join('; ') || 'None' : String(v);
+  const display = v => v === undefined ? 'Absent' : Array.isArray(v) ? v.map(x => typeof x === 'object' ? JSON.stringify(x) : x).join('; ') || 'None' : String(v);
   const difference = (title, before, after) => { const row = el('article', undefined, 'proposal-row'); row.append(el('h3', title)); const columns = el('div', undefined, 'comparison'); const a = el('div', undefined, 'before'), b = el('div', undefined, 'after'); a.append(el('h4', 'Original PR'), el('p', display(before))); b.append(el('h4', 'Suggested'), el('p', display(after))); columns.append(a, b); row.append(columns); section.append(row); count++; };
-  for (const collection of ['components', 'decisions', 'groups', 'relations', 'evidence']) {
-    for (const id of new Set([...baseline[collection], ...spec[collection]].map(v => v.id))) {
-      const before = baseline[collection].find(x => x.id === id), after = spec[collection].find(x => x.id === id);
+  for (const collection of ['components', 'decisions', 'groups', 'relations', 'evidence', 'scenarios']) {
+    for (const id of new Set([...(baseline[collection] || []), ...(spec[collection] || [])].map(v => v.id))) {
+      const before = (baseline[collection] || []).find(x => x.id === id), after = (spec[collection] || []).find(x => x.id === id);
       if (JSON.stringify(before) === JSON.stringify(after)) continue;
       const name = after?.name || after?.title || before?.name || before?.title || id;
       for (const key of new Set([...Object.keys(before || {}), ...Object.keys(after || {})])) if (key !== 'id' && JSON.stringify(before?.[key]) !== JSON.stringify(after?.[key])) difference(`${name} · ${key}`, before?.[key], after?.[key]);
@@ -231,8 +320,10 @@ function renderMessages() {
   if (nearBottom) box.scrollTop = box.scrollHeight;
 }
 async function submit(action) {
-  if (!state) return; const text = $('#feedback').value.trim();
+  if (!state) return; let text = $('#feedback').value.trim();
   if (['change', 'ask'].includes(action) && !text) { error('Describe your question or architectural change first.'); $('#feedback').focus(); return; }
+  const flow = state.spec.scenarios?.find(s => s.id === scenarioId);
+  if (text && ['ask','change'].includes(action) && flow && traceIndex >= 0 && flow[version][traceIndex]?.relationId === selected) text = `[${flow.title}, ${version === 'current' ? 'Before' : 'Intended'}, step ${traceIndex + 1}] ${text}`;
   try { await api('events', { action, text, target: selected || 'whole-change', revision: state.revision }); $('#feedback').value = ''; error(''); await refresh(); } catch (e) { error(e.message); }
 }
 $('#feedback-form').onsubmit = e => { e.preventDefault(); submit('change'); };

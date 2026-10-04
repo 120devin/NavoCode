@@ -182,3 +182,11 @@ The CLI, server, validation, source bindings, GitHub proposals, and installer ar
 ## License
 
 [Apache License 2.0](LICENSE).
+
+### Review complete execution paths
+
+Specs can record optional execution scenarios with ordered Before and Intended steps. The workspace shows each path from its trigger to its result. Select a scenario, use **Next step** to trace it, or select a connection to inspect its contract, failure behavior, source references, and evidence. **Show full flow** restores the complete path. Feedback about a traced connection includes the scenario, version, and step.
+
+Existing specs still show the architecture overview. The runtime does not infer execution order from dependency arrows. Authors must inspect source and record valid paths. See [the scenario example](examples/review-flows.json) and [spec guidance](skills/navocode/references/specs.md).
+
+Review text follows [STE-inspired guidance](skills/navocode/references/writing.md): short active sentences, consistent names, and preserved technical meaning. Assurance reports advisory sentence-length warnings. These checks do not establish ASD-STE100 compliance or factual accuracy. PR summaries include recorded execution diagrams, verification, and open questions. Explainer videos are outside this feature.
