@@ -12,7 +12,7 @@ def create(baseline, proposed, context, rationale):
     if any(baseline[k] != proposed[k] for k in ('changeId', 'baseRef')): raise ValueError('Cannot change specification identity or comparison base')
     operations = []
     for key in COLLECTIONS:
-        old = {x['id']: x for x in baseline[key]}; new = {x['id']: x for x in proposed[key]}
+        old = {x['id']: x for x in baseline.get(key, [])}; new = {x['id']: x for x in proposed.get(key, [])}
         for identifier in sorted(old.keys() | new.keys()):
             if old.get(identifier) != new.get(identifier): operations.append(dict(collection=key, id=identifier, expected=digest(old.get(identifier)), value=new.get(identifier)))
     for field in FIELDS:
@@ -52,7 +52,7 @@ def apply(spec, proposal, head):
             if digest(next_spec[op['field']]) != op['expected']: raise ValueError('Conflict: ' + op['field'])
             next_spec[op['field']] = op['value']
         else:
-            items = next_spec[op['collection']]; old = next((x for x in items if x['id'] == op['id']), None)
+            items = next_spec.setdefault(op['collection'], []); old = next((x for x in items if x['id'] == op['id']), None)
             if digest(old) != op['expected']: raise ValueError('Conflict: ' + op['id'])
             if old is not None:
                 index = items.index(old)

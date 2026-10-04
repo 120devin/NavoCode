@@ -1,0 +1,498 @@
+{
+  "schemaVersion": "1.0",
+  "changeId": "meaningful-diagrams",
+  "title": "Review changes with clear text and execution flows",
+  "intent": "Follow complete execution paths. Inspect contracts, source references, and evidence at each step.",
+  "baseRef": "1188146efe03491dcdac765c5fbf403db35c29ff",
+  "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9",
+  "groups": [
+    {
+      "id": "diagram-facts",
+      "title": "Execution review",
+      "summary": "Review the complete request path and inspect one contract at a time.",
+      "componentIds": [
+        "author",
+        "diagram",
+        "server",
+        "validator",
+        "store",
+        "proposals",
+        "writing"
+      ],
+      "decisionIds": [
+        "direct-understanding"
+      ],
+      "paths": [
+        "schema/spec.schema.json",
+        "skills/navocode/references/specs.md",
+        "skills/navocode/references/writing.md",
+        "src/navocode/core.py",
+        "src/navocode/proposals.py",
+        "src/navocode/writing.py",
+        "ui/app.js",
+        "ui/style.css",
+        "tests/browser.e2e.js",
+        "tests/test_runtime.py",
+        "examples/review-flows.json",
+        "README.md",
+        "docs/REVIEW_FLOW_EVALUATION.md"
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "author",
+      "name": "Host assistant",
+      "kind": "actor",
+      "technology": "Host coding tools",
+      "boundary": "Local author session",
+      "current": "Describe high-level components and relations.",
+      "intended": "Record complete execution paths and write short, consistent review text.",
+      "observed": "Author guidance defines ordered scenarios, contract evidence, and STE-inspired writing rules.",
+      "risk": "Missing facts must remain unknown rather than invented."
+    },
+    {
+      "id": "diagram",
+      "name": "Browser diagram",
+      "kind": "component",
+      "technology": "JavaScript / SVG",
+      "boundary": "Browser tab",
+      "current": "Show expanded component cards with responsibilities and outgoing contract details.",
+      "intended": "Show execution paths and inspect individual contracts without expanding component cards.",
+      "observed": "Scenario tracing and contract details are implemented. Narrow panels show complete steps with readable source and destination labels.",
+      "risk": "Readability still needs evaluation with software engineers."
+    },
+    {
+      "id": "server",
+      "name": "Workspace server",
+      "kind": "service",
+      "technology": "Python http.server",
+      "boundary": "Authenticated loopback HTTP",
+      "current": "Serve revision-bound specs, reports and feedback.",
+      "intended": "Serve revision-bound specs, reports and feedback.",
+      "observed": "Existing state endpoint forwards the enriched spec unchanged."
+    },
+    {
+      "id": "validator",
+      "name": "Spec validator",
+      "kind": "component",
+      "technology": "Python standard library",
+      "boundary": "Local runtime",
+      "current": "Validate responsibilities, relations and source binding.",
+      "intended": "Validate scenario steps, version availability, evidence links, and source binding.",
+      "observed": "The validator rejects missing relations, disconnected steps, invalid version references, and unsafe source paths.",
+      "risk": "Shape and freshness checks cannot verify factual architecture quality."
+    },
+    {
+      "id": "store",
+      "name": "Spec and baseline files",
+      "kind": "datastore",
+      "technology": "JSON files",
+      "boundary": "Local checkout",
+      "current": "Store intent, recorded evidence and proposal baseline.",
+      "intended": "Store intent, recorded evidence and proposal baseline.",
+      "observed": "New metadata uses the existing atomic spec-file writer."
+    },
+    {
+      "id": "proposals",
+      "name": "Proposal engine",
+      "kind": "component",
+      "technology": "Python standard library",
+      "boundary": "Revision-bound review",
+      "current": "Preserve typed component and relation edits across adoption.",
+      "intended": "Preserve typed component and relation edits across adoption.",
+      "observed": "Runtime tests verify that typed proposals preserve scenario additions and removals."
+    },
+    {
+      "id": "writing",
+      "name": "Writing checker",
+      "kind": "component",
+      "technology": "Python",
+      "current": "The workspace did not check sentence length.",
+      "intended": "Flag long sentences without changing technical claims.",
+      "observed": "The checker reports sentence-length warnings. It does not claim STE compliance."
+    }
+  ],
+  "relations": [
+    {
+      "id": "state-request",
+      "from": "diagram",
+      "to": "server",
+      "label": "Read workspace state",
+      "state": "both",
+      "paths": [
+        "ui/app.js",
+        "src/navocode/server.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Authenticated HTTP",
+      "failure": "Reject a request without a session token.",
+      "decisionIds": [
+        "direct-understanding"
+      ]
+    },
+    {
+      "id": "read-spec",
+      "from": "server",
+      "to": "store",
+      "label": "Read the saved spec",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Local JSON",
+      "failure": "Fail if the spec cannot be read."
+    },
+    {
+      "id": "return-spec",
+      "from": "store",
+      "to": "server",
+      "label": "Return the saved spec",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Local JSON"
+    },
+    {
+      "id": "check-spec",
+      "from": "server",
+      "to": "validator",
+      "label": "Check the spec and source binding",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py",
+        "src/navocode/core.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Python call",
+      "failure": "Reject invalid scenarios and references."
+    },
+    {
+      "id": "check-writing",
+      "from": "validator",
+      "to": "writing",
+      "label": "Check sentence length",
+      "state": "intended",
+      "paths": [
+        "src/navocode/core.py",
+        "src/navocode/writing.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Python call"
+    },
+    {
+      "id": "writing-result",
+      "from": "writing",
+      "to": "validator",
+      "label": "Return writing warnings",
+      "state": "intended",
+      "paths": [
+        "src/navocode/core.py",
+        "src/navocode/writing.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Python return"
+    },
+    {
+      "id": "check-result",
+      "from": "validator",
+      "to": "server",
+      "label": "Return the source report",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py",
+        "src/navocode/core.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Python return"
+    },
+    {
+      "id": "state-response",
+      "from": "server",
+      "to": "diagram",
+      "label": "Return the workspace state",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "HTTP JSON"
+    },
+    {
+      "id": "auth-error",
+      "from": "server",
+      "to": "diagram",
+      "label": "Return an authorization error",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "HTTP 401"
+    },
+    {
+      "id": "ack-event",
+      "from": "author",
+      "to": "server",
+      "label": "Acknowledge a feedback event",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "Authenticated HTTP",
+      "failure": "Reject an unknown event."
+    },
+    {
+      "id": "ack-result",
+      "from": "server",
+      "to": "author",
+      "label": "Confirm the event acknowledgement",
+      "state": "both",
+      "paths": [
+        "src/navocode/server.py"
+      ],
+      "evidenceIds": [
+        "source-inspection"
+      ],
+      "protocol": "HTTP JSON"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "direct-understanding",
+      "title": "Clear text and interactive execution flows",
+      "category": "contracts",
+      "choice": "Use STE-inspired text, complete execution scenarios, and interactive tracing. Defer videos.",
+      "alternatives": [
+        "Show only a dependency overview and separate prose."
+      ],
+      "consequences": [
+        "The author records each path from its trigger to its outcome.",
+        "Sentence checks are advisory. The reviewer retains technical terms.",
+        "Connections expose contracts, failure behavior, source paths, evidence, and decisions."
+      ],
+      "status": "accepted",
+      "provenance": "human",
+      "evidenceIds": [
+        "source-inspection",
+        "runtime-checks",
+        "browser-checks"
+      ]
+    }
+  ],
+  "evidence": [
+    {
+      "id": "source-inspection",
+      "kind": "source",
+      "status": "supported",
+      "claim": "Recorded scenarios match the inspected local request and acknowledgement paths.",
+      "detail": "Inspected state retrieval, token rejection, and acknowledgement idempotency in the server. Inspected scenario validation and writing checks in the runtime. The preview shows the recorded request and response paths.",
+      "paths": [
+        "ui/app.js",
+        "src/navocode/server.py",
+        "src/navocode/core.py",
+        "src/navocode/writing.py"
+      ],
+      "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9"
+    },
+    {
+      "id": "runtime-checks",
+      "kind": "test",
+      "status": "supported",
+      "claim": "Scenario validation, writing checks, and proposal edits preserve their contracts.",
+      "detail": "npm run check passed JavaScript syntax checks and all 38 Python tests. Tests cover scenario references, connected steps, version availability, safe paths, proposal adoption, and advisory writing checks.",
+      "paths": [
+        "tests/test_runtime.py"
+      ],
+      "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9"
+    },
+    {
+      "id": "browser-checks",
+      "kind": "test",
+      "status": "supported",
+      "claim": "Reviewers can trace success, failure, and retry paths and inspect linked evidence.",
+      "detail": "All four Chromium scenarios passed. Checks cover success, rejection, retries, evidence, contextual feedback, and keyboard controls. Narrow-panel checks verify every label fits and resizing preserves the active step.",
+      "paths": [
+        "tests/browser.e2e.js"
+      ],
+      "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9"
+    }
+  ],
+  "acceptanceCriteria": [
+    "Existing specs and proposal edits remain compatible.",
+    "Scenario steps connect and refer to relations available in that version.",
+    "The reviewer can select a scenario and trace its steps.",
+    "Connections expose contracts, failure behavior, source paths, evidence, and decisions.",
+    "Before and Intended preserve participant positions.",
+    "Feedback records the selected scenario, version, and step.",
+    "Sentence checks report length warnings without rewriting source text."
+  ],
+  "nonGoals": [
+    "Explainer videos.",
+    "A claim of STE compliance or measured human comprehension.",
+    "Automatically deriving execution order from dependencies.",
+    "Fixing the separate PR comparison coverage issue."
+  ],
+  "unknowns": [],
+  "supportingChanges": [],
+  "scenarios": [
+    {
+      "id": "workspace-state",
+      "title": "Read workspace state",
+      "trigger": "The browser requests the current workspace state.",
+      "outcome": "The browser receives the spec, source report, and feedback.",
+      "current": [
+        {
+          "id": "state-request-1",
+          "relationId": "state-request"
+        },
+        {
+          "id": "read-spec-1",
+          "relationId": "read-spec"
+        },
+        {
+          "id": "return-spec-1",
+          "relationId": "return-spec"
+        },
+        {
+          "id": "check-spec-1",
+          "relationId": "check-spec"
+        },
+        {
+          "id": "check-result-1",
+          "relationId": "check-result"
+        },
+        {
+          "id": "state-response-1",
+          "relationId": "state-response"
+        }
+      ],
+      "intended": [
+        {
+          "id": "state-request-1",
+          "relationId": "state-request"
+        },
+        {
+          "id": "read-spec-1",
+          "relationId": "read-spec"
+        },
+        {
+          "id": "return-spec-1",
+          "relationId": "return-spec"
+        },
+        {
+          "id": "check-spec-1",
+          "relationId": "check-spec"
+        },
+        {
+          "id": "check-writing-1",
+          "relationId": "check-writing"
+        },
+        {
+          "id": "writing-result-1",
+          "relationId": "writing-result"
+        },
+        {
+          "id": "check-result-1",
+          "relationId": "check-result"
+        },
+        {
+          "id": "state-response-1",
+          "relationId": "state-response"
+        }
+      ]
+    },
+    {
+      "id": "missing-token",
+      "title": "Reject a missing token",
+      "trigger": "The browser sends a request without the session token.",
+      "outcome": "The server returns HTTP 401 before it reads the spec.",
+      "current": [
+        {
+          "id": "state-request-1",
+          "relationId": "state-request"
+        },
+        {
+          "id": "auth-error-1",
+          "relationId": "auth-error"
+        }
+      ],
+      "intended": [
+        {
+          "id": "state-request-1",
+          "relationId": "state-request"
+        },
+        {
+          "id": "auth-error-1",
+          "relationId": "auth-error"
+        }
+      ]
+    },
+    {
+      "id": "ack-retry",
+      "title": "Retry an acknowledgement",
+      "trigger": "The host repeats an acknowledgement for the same event.",
+      "outcome": "The server confirms the event without duplicating its reply.",
+      "current": [
+        {
+          "id": "ack-event-1",
+          "relationId": "ack-event"
+        },
+        {
+          "id": "ack-result-1",
+          "relationId": "ack-result"
+        },
+        {
+          "id": "ack-event-2",
+          "relationId": "ack-event"
+        },
+        {
+          "id": "ack-result-2",
+          "relationId": "ack-result"
+        }
+      ],
+      "intended": [
+        {
+          "id": "ack-event-1",
+          "relationId": "ack-event"
+        },
+        {
+          "id": "ack-result-1",
+          "relationId": "ack-result"
+        },
+        {
+          "id": "ack-event-2",
+          "relationId": "ack-event"
+        },
+        {
+          "id": "ack-result-2",
+          "relationId": "ack-result"
+        }
+      ]
+    }
+  ]
+}
