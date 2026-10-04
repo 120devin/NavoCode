@@ -151,6 +151,15 @@ test('review scenarios: success, failure and retry traces preserve context and e
   await page.getByRole('button',{name:'Show full flow',exact:true}).click();assert.equal(await page.locator('.trace-active').count(),0);
   f.spec.relations[1].label='<img src=x onerror=alert(1)> '+ 'W'.repeat(120);jsonWrite(f.path,f.spec);await page.locator('.scenario-graph').getByText('4. '+f.spec.relations[1].label,{exact:true}).waitFor();assert.equal(await page.locator('.scenario-graph img').count(),0);
   await page.setViewportSize({width:390,height:844});assert.ok(await page.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+1));
+  await page.locator('.compact-flow').waitFor();
+  assert.ok(await page.locator('.scenario-graph').evaluate(el=>el.scrollWidth<=el.clientWidth+1), 'The complete flow must fit without horizontal panning.');
+  assert.equal(await page.locator('.flow-endpoint').count(),12);
+  assert.ok(await page.locator('.scenario-graph').evaluate(el=>[...el.querySelectorAll('text')].every(n=>{const r=n.getBoundingClientRect(), box=el.getBoundingClientRect();return r.left>=box.left-1 && r.right<=box.right+1;})), 'Every flow label must stay visible.');
+  await page.getByRole('button',{name:'Next step',exact:true}).click();await page.getByText('Step 1 of 6',{exact:true}).waitFor();
+  await page.setViewportSize({width:1440,height:1100});await page.locator('.scenario-graph:not(.compact-flow)').waitFor();
+  assert.equal(await page.locator('.trace-active').count(),1);
+  assert.ok(await page.locator('.scenario-graph').evaluate(el=>el.scrollWidth<=el.clientWidth+1));
+
   await page.getByLabel('Execution scenario').selectOption('');await page.locator('.flow-contract').first().click();await page.locator('#contract-details h3').waitFor();
   await page.getByRole('link',{name:'Architecture',exact:true}).click();await page.reload();await page.locator('.scenario-graph').waitFor();assert.equal(await page.locator('#error').isVisible(),false);
   assert.deepEqual(errors,[]);

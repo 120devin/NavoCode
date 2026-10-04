@@ -4,7 +4,7 @@
   "title": "Review changes with clear text and execution flows",
   "intent": "Follow complete execution paths. Inspect contracts, source references, and evidence at each step.",
   "baseRef": "1188146efe03491dcdac765c5fbf403db35c29ff",
-  "sourceDigest": "sha256:5f483f0afb7bb450e7a532a38bdac7caf643d76aa1b17bc8e0665c2e75857497",
+  "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9",
   "groups": [
     {
       "id": "diagram-facts",
@@ -59,7 +59,7 @@
       "boundary": "Browser tab",
       "current": "Show expanded component cards with responsibilities and outgoing contract details.",
       "intended": "Show execution paths and inspect individual contracts without expanding component cards.",
-      "observed": "Scenario selection, step controls, stable version layouts, contract details, and contextual feedback are implemented.",
+      "observed": "Scenario tracing and contract details are implemented. Narrow panels show complete steps with readable source and destination labels.",
       "risk": "Readability still needs evaluation with software engineers."
     },
     {
@@ -317,7 +317,7 @@
         "src/navocode/core.py",
         "src/navocode/writing.py"
       ],
-      "sourceDigest": "sha256:5f483f0afb7bb450e7a532a38bdac7caf643d76aa1b17bc8e0665c2e75857497"
+      "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9"
     },
     {
       "id": "runtime-checks",
@@ -328,18 +328,18 @@
       "paths": [
         "tests/test_runtime.py"
       ],
-      "sourceDigest": "sha256:5f483f0afb7bb450e7a532a38bdac7caf643d76aa1b17bc8e0665c2e75857497"
+      "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9"
     },
     {
       "id": "browser-checks",
       "kind": "test",
       "status": "supported",
       "claim": "Reviewers can trace success, failure, and retry paths and inspect linked evidence.",
-      "detail": "npm run test:browser passed all four Chromium scenarios. Checks cover success, rejection, repeated retries, stable participants, evidence details, contextual feedback, keyboard controls, mobile containment, and section-link refresh.",
+      "detail": "All four Chromium scenarios passed. Checks cover success, rejection, retries, evidence, contextual feedback, and keyboard controls. Narrow-panel checks verify every label fits and resizing preserves the active step.",
       "paths": [
         "tests/browser.e2e.js"
       ],
-      "sourceDigest": "sha256:5f483f0afb7bb450e7a532a38bdac7caf643d76aa1b17bc8e0665c2e75857497"
+      "sourceDigest": "sha256:f477398ff9cad79fde13c1ae65bb358478c4ace291975bfde26efd13ed3c93d9"
     }
   ],
   "acceptanceCriteria": [

@@ -42,6 +42,12 @@ The output supports faster initial review, but these checks do not establish a 9
 - Before and Intended share trigger and outcome text. Use separate scenarios when these facts differ materially.
 - Sentence-length checks do not enforce the STE dictionary, active voice, or consistent naming.
 - Evidence links identify recorded claims; they do not automatically verify those claims.
-- Large flows require scrolling. Scenario selection limits how much appears at once.
+- Long flows require vertical scrolling. Narrow panels show each ordered step with its source and destination. Wide panels retain participant lanes.
 
 The writing guidance adapts [ASD-STE100 Issue 9](https://www.asd-ste100.org/assets/files/ASD-STE100_ISSUE9.pdf). It does not claim standard compliance.
+
+## Responsive rendering regression
+
+The fixed-width sequence diagram clipped participants in the narrow author workspace. The renderer now fits the panel and uses source-to-destination steps when participant lanes would become too narrow. Labels wrap without shrinking the text. Resizing preserves the selected step and its contract.
+
+All 38 runtime tests and four browser scenarios passed. The regression checks verify that every label fits at 390 pixels, all retry endpoints remain visible, and widening the panel preserves the active step. The live author workspace was also inspected at its 526-pixel width.

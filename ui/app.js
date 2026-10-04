@@ -189,32 +189,48 @@ function scenarioGraph(scenario) {
   };
   const relations = new Map(state.spec.relations.map(r => [r.id, r]));
   const participants = [...new Set([...scenario.current, ...scenario.intended].flatMap(step => { const r = relations.get(step.relationId); return [r.from, r.to]; }))];
-  const width = Math.max(490, participants.length * 175 + 40), positions = new Map(participants.map((id, i) => [id, 35 + i * 175]));
-  const svg = make('svg', {role:'img', 'aria-label':`${version} execution flow`}); svg.style.width = `${width}px`;
+  // Fit the actual panel rather than forcing the reader to pan across participants.
+  const width = Math.max(220, Math.floor($('#content').clientWidth - (matchMedia('(max-width:760px)').matches ? 36 : 46)));
+  const compact = width < participants.length * 140 + 40, lane = (width - 40) / participants.length;
+  const cardWidth = lane - 20, positions = new Map(participants.map((id, i) => [id, 30 + i * lane]));
+  const name = id => state.spec.components.find(c => c.id === id).name;
+  const endpointWidth = (width - 90) / 2;
+  canvas.classList.toggle('compact-flow', compact);
+  const svg = make('svg', {role:'img', 'aria-label':`${version} execution flow`}); svg.style.width = '100%';
   let y = 25; y += text(svg, scenario.title, 20, y, 'map-title', width - 45) + 7;
   y += text(svg, 'Trigger: ' + scenario.trigger, 20, y, 'component-responsibility', width - 45) + 5;
   y += text(svg, 'Result: ' + scenario.outcome, 20, y, 'component-responsibility', width - 45) + 15;
-  const top = y, headerHeight = Math.max(...participants.map(id => lines(state.spec.components.find(c => c.id === id).name, 125).length * 17 + 32)); y += headerHeight + 25;
+  const top = y, headerHeight = compact ? 0 : Math.max(...participants.map(id => lines(name(id), cardWidth - 20).length * 17 + 32)); y += compact ? 15 : headerHeight + 25;
   const slots = [];
   for (let i = 0; i < Math.max(scenario.current.length, scenario.intended.length); i++) {
-    const height = Math.max(...['current','intended'].map(v => { const step = scenario[v][i]; if (!step) return 0; const r = relations.get(step.relationId); return 55 + lines(r.label, width - 65).length * 17 + lines(step.description || '', width - 65).length * 17 + (r.from === r.to ? 25 : 0); }));
+    const height = Math.max(...['current','intended'].map(v => { const step = scenario[v][i]; if (!step) return 0; const r = relations.get(step.relationId); return 55 + lines(r.label, width - 65).length * 17 + lines(step.description || '', width - 65).length * 17 + (compact ? Math.max(lines(name(r.from), endpointWidth - 16).length, lines(name(r.to), endpointWidth - 16).length) * 17 + 20 : r.from === r.to ? 25 : 0); }));
     slots.push({y, height}); y += height;
   }
   if (!scenario[version].length) text(svg, `No ${version === 'current' ? 'Before' : 'Intended'} steps recorded for this scenario.`, 20, (slots[0]?.y || y) + 20, 'map-warning', width - 45);
   const defs = make('defs', {}), marker = make('marker', {id:'flow-arrow', viewBox:'0 0 10 10', refX:9, refY:5, markerWidth:6, markerHeight:6, orient:'auto'}); marker.append(make('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#58718d'})); defs.append(marker); svg.append(defs);
-  for (const id of participants) {
+  for (const id of compact ? [] : participants) {
     const c = state.spec.components.find(c => c.id === id), x = positions.get(id), g = make('g', {role:'button',tabindex:0,'aria-label':`Inspect ${c.name}`,'data-concept':id,class:'component-node'});
-    g.append(make('line',{x1:x+72.5,x2:x+72.5,y1:top+headerHeight,y2:y,class:'flow-lifeline'}), make('rect',{x,y:top,width:145,height:headerHeight,rx:8,class:'component-card'})); text(g,c.name,x+10,top+25,'component-name',125);
+    g.append(make('line',{x1:x+cardWidth/2,x2:x+cardWidth/2,y1:top+headerHeight,y2:y,class:'flow-lifeline'}), make('rect',{x,y:top,width:cardWidth,height:headerHeight,rx:8,class:'component-card'})); text(g,c.name,x+10,top+25,'component-name',cardWidth-20);
     g.onclick=()=>choose(id); g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(id);}}; svg.append(g);
   }
   scenario[version].forEach((step,i)=>{
-    const r=relations.get(step.relationId), slot=slots[i], x=positions.get(r.from)+72.5, target=positions.get(r.to)+72.5;
+    const r=relations.get(step.relationId), slot=slots[i], x=positions.get(r.from)+cardWidth/2, target=positions.get(r.to)+cardWidth/2;
     const other=scenario[version==='current'?'intended':'current'].find(s=>s.id===step.id), changed=other?.relationId!==step.relationId || other?.description!==step.description;
     const g=make('g',{role:'button',tabindex:0,'aria-label':`Step ${i+1}: ${r.label}`,'data-concept':r.id,'data-relation':r.id,'data-step-index':i,class:`flow-step ${changed?'changed':''}`});
     g.append(make('rect',{x:15,y:slot.y-12,width:width-30,height:slot.height-10,rx:5,class:'step-background'}));
     let cursor=slot.y+5; cursor+=text(g,`${i+1}. ${r.label}`,25,cursor,'contract-label',width-65)+10;
+    if (compact) {
+      const endpointHeight = Math.max(lines(name(r.from), endpointWidth-16).length, lines(name(r.to), endpointWidth-16).length) * 17 + 16;
+      for (const [id, left] of [[r.from, 25], [r.to, width-25-endpointWidth]]) {
+        g.append(make('rect',{x:left,y:cursor-4,width:endpointWidth,height:endpointHeight,rx:6,class:'flow-endpoint'}));
+        text(g,name(id),left+8,cursor+16,'contract-label',endpointWidth-16);
+      }
+      g.append(make('path',{d:`M ${25+endpointWidth} ${cursor+endpointHeight/2-4} H ${width-25-endpointWidth}`,class:'edge','marker-end':'url(#flow-arrow)'}));
+      cursor += endpointHeight + 16;
+    } else {
     const path=x===target?`M ${x} ${cursor} h 55 v 20 h -55`:`M ${x} ${cursor} H ${target}`;
     g.append(make('path',{d:path,class:'edge','marker-end':'url(#flow-arrow)'})); cursor+=x===target?45:25;
+    }
     if(step.description) text(g,step.description,25,cursor,'component-meta',width-65);
     g.onclick=()=>{traceIndex=i;choose(r.id,false);}; g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();traceIndex=i;choose(r.id,false);}}; svg.append(g);
   });
@@ -336,4 +352,9 @@ async function refresh() {
     if (signature !== lastSignature) { lastSignature = signature; render(); }
   } catch (e) { error(`Workspace unavailable: ${e.message}. Ask your agent to restart the session if needed.`); }
 }
+let resizeFrame;
+window.addEventListener('resize', () => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => { if (state) { renderContent(); choose(selected, false); } });
+});
 await refresh(); setInterval(refresh, 1500);
