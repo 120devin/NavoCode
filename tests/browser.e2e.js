@@ -28,7 +28,7 @@ test('browser author: explore, send feedback, receive agent revision, accept, re
   f.spec.components[2].intended = 'Own charging and delegate eligibility to authorization.'; jsonWrite(f.path, f.spec);
   await sessionRequest(sessionPath, '/api/ack', { id: event.id, message: 'Billing now delegates eligibility to authorization.' });
   await page.getByText('Billing now delegates eligibility to authorization.', { exact: true }).waitFor();
-  await page.getByText(f.spec.components[2].intended, { exact: true }).first().waitFor();
+  await page.locator('.responsibility').getByText(f.spec.components[2].intended, { exact: true }).waitFor();
   f.spec.decisions[0].status = 'proposed'; f.spec.decisions[0].provenance = 'agent'; jsonWrite(f.path, f.spec);
   await page.waitForFunction(() => document.querySelector('[data-action=implement]').disabled);
   await page.getByRole('button', { name: 'Accept design', exact: true }).click();
@@ -75,7 +75,7 @@ test('browser reviewer: compare edits, publish intent, no direct implementation 
 });
 
 
-test('diagram alone exposes ownership, contract, change, failure and uncertainty with stable positions', async t => {
+test('holistic flow uses compact nodes and labeled connections with stable positions', async t => {
   const f = fixture(t), sessionPath = join(f.repo, '.navocode/local/session.json');
   Object.assign(f.spec.components[2], { kind: 'component', technology: 'Python', boundary: 'Local billing policy', risk: 'Delegated payer may be ineligible.' });
   Object.assign(f.spec.relations[1], { protocol: 'In-process call', failure: 'Reject an ineligible delegated payer.' });
@@ -89,11 +89,15 @@ test('diagram alone exposes ownership, contract, change, failure and uncertainty
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(session.url); await page.getByRole('heading', { name: f.spec.title }).waitFor();
   const graph = page.locator('.graph');
-  for (const text of [f.spec.title, f.spec.intent, f.spec.components[2].intended, 'component · Python', 'Previously: ' + f.spec.components[2].current, 'Boundary: Local billing policy', 'Risk: Delegated payer may be ineligible.', '→ Billing service', 'Delegated payer', 'Protocol: In-process call', 'On failure: Reject an ineligible delegated payer.', 'Decision needed: Who owns eligibility policy?', 'Open question: How do existing clients migrate?', 'Evidence: 1 claims need verification']) await graph.getByText(text, { exact: true }).first().waitFor();
-  assert.ok(await graph.getByText('Changed responsibility', { exact: true }).count());
+  for (const text of [f.spec.title, f.spec.intent, 'component · Python', 'Delegated payer', 'In-process call', 'Decision needed: Who owns eligibility policy?', 'Open question: How do existing clients migrate?', 'Evidence: 1 claims need verification']) await graph.getByText(text, { exact: true }).first().waitFor();
+  assert.ok(await graph.getByText('Changed', { exact: true }).count());
+  assert.equal(await graph.getByText('Previously: ' + f.spec.components[2].current, { exact: true }).count(), 0);
+  assert.equal(await graph.locator('[data-concept] .contract-label').count(), 0);
+  assert.equal(await graph.locator('.map-edges [data-edge]').count(), f.spec.relations.filter(r => r.state !== 'current').length);
   assert.equal(await page.locator('.graph-contracts').count(), 0);
   const positions = () => graph.locator('[data-concept] > .component-card').evaluateAll(nodes => nodes.map(n => ['x', 'y', 'height'].map(key => n.getAttribute(key))));
   const intendedPositions = await positions();
+  assert.ok(intendedPositions.every(p => Number(p[2]) < 150), 'ordinary nodes stay compact');
   await page.getByRole('button', { name: 'Before', exact: true }).click();
   assert.deepEqual(await positions(), intendedPositions);
   assert.equal(await graph.getByText('Delegated payer', { exact: true }).count(), 0);

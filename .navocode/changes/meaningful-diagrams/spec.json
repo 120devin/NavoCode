@@ -1,15 +1,15 @@
 {
   "schemaVersion": "1.0",
   "changeId": "meaningful-diagrams",
-  "title": "Architecture diagrams that explain the change",
-  "intent": "Make ownership, contracts, changes and consequential risks directly readable from the diagram.",
+  "title": "Architecture as an end-to-end flow",
+  "intent": "Show entry points, internal handoffs and outcomes together in one compact flow.",
   "baseRef": "1188146efe03491dcdac765c5fbf403db35c29ff",
-  "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838",
+  "sourceDigest": "sha256:64e12fa542d1c0e82b4819418f5125ed7287f8f0e00fdcc8110e47a6db9cdac5",
   "groups": [
     {
       "id": "diagram-facts",
-      "title": "Self-explanatory architecture canvas",
-      "summary": "Keep review facts inside the diagram without numbered contract lookup.",
+      "title": "Holistic architecture flow",
+      "summary": "Compact components and labeled connections reveal the complete system path.",
       "componentIds": [
         "author",
         "diagram",
@@ -49,9 +49,9 @@
       "kind": "component",
       "technology": "JavaScript / SVG",
       "boundary": "Browser tab",
-      "current": "Show names, responsibility prose and numbered contract links.",
-      "intended": "Explain ownership, changes and outgoing contracts on canvas.",
-      "observed": "SVG cards expose full contracts, destination, protocol, failure, evidence warnings and unresolved decisions.",
+      "current": "Show expanded component cards with responsibilities and outgoing contract details.",
+      "intended": "Show compact components connected by labeled end-to-end flows.",
+      "observed": "Dependency stages connect compact named nodes. Full relation labels and protocols sit on connections; risks and responsibilities remain in tooltips and supporting sections.",
       "risk": "Readability still needs evaluation with software engineers."
     },
     {
@@ -155,16 +155,16 @@
   "decisions": [
     {
       "id": "direct-understanding",
-      "title": "Direct diagram understanding",
+      "title": "Holistic end-to-end diagram",
       "category": "contracts",
-      "choice": "Show the facts needed for engineering review directly in the diagram, targeting 90% inferability.",
+      "choice": "Prefer a holistic end-to-end flow with compact components over expanded per-component cards.",
       "alternatives": [
-        "Require reading separate responsibility and numbered contract lists."
+        "Expanded responsibility and contract cards for each component."
       ],
       "consequences": [
-        "Component ownership, version changes and outgoing contracts stay visible on canvas.",
-        "Optional metadata keeps existing specs valid; absent facts are not fabricated.",
-        "Ninety percent is a human comprehension target; browser assertions do not establish it."
+        "Named compact nodes keep the system path visible; connections carry operation and protocol labels.",
+        "Detailed responsibilities and failure behavior remain secondary to the flow.",
+        "Before and Intended preserve node positions; version-only connections are dashed."
       ],
       "status": "accepted",
       "provenance": "human",
@@ -181,7 +181,7 @@
       "kind": "source",
       "status": "supported",
       "claim": "Diagram facts are rendered from the spec without inventing absent metadata.",
-      "detail": "Inspected SVG text wrapping, contract ports, stable layout, schema properties, and local transport. The human explicitly requested that most information be inferable directly from the diagram.",
+      "detail": "Inspected compact node geometry, labeled flow lanes, stage-skipping routes, cycle handling, tooltips and source validation. The human explicitly requested a holistic end-to-end view rather than expansion per component.",
       "paths": [
         "schema/spec.schema.json",
         "skills/navocode/references/specs.md",
@@ -190,7 +190,7 @@
         "tests/browser.e2e.js",
         "tests/test_runtime.py"
       ],
-      "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838"
+      "sourceDigest": "sha256:64e12fa542d1c0e82b4819418f5125ed7287f8f0e00fdcc8110e47a6db9cdac5"
     },
     {
       "id": "runtime-checks",
@@ -201,27 +201,26 @@
       "paths": [
         "tests/test_runtime.py"
       ],
-      "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838"
+      "sourceDigest": "sha256:64e12fa542d1c0e82b4819418f5125ed7287f8f0e00fdcc8110e47a6db9cdac5"
     },
     {
       "id": "browser-checks",
       "kind": "test",
       "status": "supported",
-      "claim": "Engineering facts can be located inside the SVG with no outside contract lookup.",
-      "detail": "npm run test:browser passed all 3 Chromium tests. Assertions locate purpose, responsibility, change, destination, protocol, failure, pending decision, uncertainty and evidence warnings inside the SVG; verify stable node geometry and long-label containment. Existing author/reviewer flows, cycles, self-loops, XSS-safe text and mobile page checks also pass. These are functional checks, not measured human comprehension.",
+      "claim": "Compact nodes and labeled connections form a stable architecture overview.",
+      "detail": "npm run test:browser passed all 3 Chromium scenarios. Tests assert compact normal node heights below 150px, labels outside nodes, directed edge count, full contract/protocol text, pending decisions and uncertainty, stable Before/Intended coordinates, long identifier containment, cycles/self-loops, feedback/acceptance and reviewer flows. No human comprehension percentage is claimed.",
       "paths": [
         "tests/browser.e2e.js"
       ],
-      "sourceDigest": "sha256:89e70c7388ec209c26a7b01b1084451e8fbc4d0a6d44c192f900e032f8480838"
+      "sourceDigest": "sha256:64e12fa542d1c0e82b4819418f5125ed7287f8f0e00fdcc8110e47a6db9cdac5"
     }
   ],
   "acceptanceCriteria": [
-    "The diagram shows purpose, owners, contract destinations, protocols and failures when recorded.",
-    "Changed nodes include the other version responsibility directly on canvas.",
-    "Layout stays fixed across Before and Intended.",
-    "Unresolved decisions, source/evidence limitations and open questions appear in the diagram.",
-    "Existing specs remain valid; missing type/technology is visibly not recorded.",
-    "Long labels, cycles, self-loops and keyboard contextual discussion continue working."
+    "Compact component nodes and labeled directed connections show the complete architecture flow.",
+    "Responsibilities and outgoing contract lists are not expanded inside component nodes.",
+    "Before and Intended preserve node coordinates and heights.",
+    "Pending decisions, source/evidence warnings and open questions remain visible.",
+    "Long labels, cycles, self-loops and existing author/reviewer workflows remain functional."
   ],
   "nonGoals": [
     "Claiming 90% measured comprehension without engineer testing.",
