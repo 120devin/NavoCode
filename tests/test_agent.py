@@ -71,6 +71,17 @@ class AgentTests(unittest.TestCase):
         server, session = self.workspace()
         event = self.feedback(session, text='empty reply'); state = self.wait_event(session, event['id'], 'failed')
         self.assertEqual(state['messages'], []); self.assertIn('without a reply', state['events'][0]['error'])
+    def test_codex_writer_conflict_explains_host_ownership_without_retry_or_replacement(self):
+        server, session = self.workspace('codex')
+        event = self.feedback(session, text='active writer')
+        state = self.wait_event(session, event['id'], 'failed')
+        self.assertIn('Finishing its turn does not release', state['events'][0]['error'])
+        self.assertIn('custom adapter connected to the owning host', state['events'][0]['error'])
+        self.assertEqual(state['messages'], [])
+        calls = (self.repo/'.navocode/local/fake-invocations.jsonl').read_text().splitlines()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(json.loads(calls[0])['context']['agentSession'], SESSION)
+        self.assertIn('already has an active writer', read_json(self.repo/'.navocode/local/last-agent-error.json')['detail'])
     def test_structured_failure_exposes_actual_reason_and_saves_diagnostic(self):
         server, session = self.workspace('codex')
         event = self.feedback(session, text='structured failure')
