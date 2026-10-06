@@ -43,16 +43,32 @@ claude --plugin-dir /absolute/path/to/NavoCode
 
 Then invoke `/navocode:navocode` with your authoring request or PR URL. The repository also contains a Claude marketplace manifest for distribution. No MCP server is required.
 
-### Optional npm compatibility CLI
+### npm CLI
 
-With Node.js 20+ and Python installed, from this checkout:
+The npm package bundles the Python runtime, local UI, schema, examples, and skill installer. It requires **Node.js 20+** and **Python 3.10+**; Python must be available as `python3`, or set `NAVOCODE_PYTHON` to its executable path.
+
+The first npm publication is pending. After it is published:
 
 ```sh
-npm install -g .
+npm install -g navocode
 navocode help
+navocode install --host codex --project /path/to/your-project
 ```
 
-The skill installer also works without this step. NavoCode has not been published to the npm registry; do not assume `npm install -g navocode` installs this project.
+To try the package before publication, run `npm install -g .` from this checkout.
+
+### Upgrade
+
+After npm publication, update the CLI and then reinstall the skill in each project:
+
+```sh
+npm install -g navocode@latest
+navocode install --host codex --project /path/to/your-project
+```
+
+Replace `codex` with your assistant host. Updating the global CLI does not update skills already copied into projects. Reinstall with `--pr-mode always` if you use that preference. The installer refuses to replace locally edited skills; preserve and reconcile those edits before upgrading. Start a new assistant session after reinstalling.
+
+Maintainer instructions: [manual npm releases](docs/RELEASING.md).
 
 ## Author a change
 
