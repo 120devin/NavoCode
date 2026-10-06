@@ -71,6 +71,30 @@ class AgentTests(unittest.TestCase):
         server, session = self.workspace()
         event = self.feedback(session, text='empty reply'); state = self.wait_event(session, event['id'], 'failed')
         self.assertEqual(state['messages'], []); self.assertIn('without a reply', state['events'][0]['error'])
+    def test_structured_failure_exposes_actual_reason_and_saves_diagnostic(self):
+        server, session = self.workspace('codex')
+        event = self.feedback(session, text='structured failure')
+        state = self.wait_event(session, event['id'], 'failed')
+        self.assertIn('Model unavailable for this account.', state['events'][0]['error'])
+        self.assertNotIn('Telemetry warning', state['events'][0]['error'])
+        diagnostic = self.repo/'.navocode/local/last-agent-error.json'
+        record = read_json(diagnostic)
+        self.assertEqual(record['eventId'], event['id'])
+        self.assertEqual(record['sessionId'], SESSION)
+        self.assertEqual(record['exitCode'], 1)
+        self.assertEqual(record['detail'], 'Model unavailable for this account.')
+        if os.name == 'posix': self.assertEqual(diagnostic.stat().st_mode & 0o777, 0o600)
+    def test_stderr_failure_is_visible_with_credentials_redacted_for_every_host(self):
+        for provider in ('codex','claude','cursor','copilot','custom'):
+            with self.subTest(provider=provider), patch.dict(os.environ, {'NAVOCODE_TEST_API_KEY':'private-test-credential'}):
+                server, session = self.workspace(provider)
+                event = self.feedback(session, text='stderr failure')
+                state = self.wait_event(session, event['id'], 'failed')
+                error = state['events'][0]['error']
+                self.assertIn('Session not found.', error)
+                self.assertIn('[redacted]', error)
+                self.assertNotIn('private-test-credential', error)
+                self.assertNotIn('private-test-credential', (self.repo/'.navocode/local/last-agent-error.json').read_text())
     def test_timeout_kills_process_and_exposes_failure(self):
         server, session = self.workspace(timeout=.1)
         event = self.feedback(session, text='block'); state = self.wait_event(session, event['id'], 'failed')

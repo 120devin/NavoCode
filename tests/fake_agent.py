@@ -24,7 +24,15 @@ folder.mkdir(parents=True, exist_ok=True)
 with (folder / 'fake-invocations.jsonl').open('a') as log:
     log.write(json.dumps(dict(args=args, context=context, pid=os.getpid())) + '\n')
 if event['text'] == 'fail once' and not (folder / 'fake-once').exists():
-    (folder / 'fake-once').touch(); sys.exit(1)
+    (folder / 'fake-once').touch()
+    print('Simulated transient CLI failure.', file=sys.stderr); sys.exit(1)
+if event['text'] == 'structured failure':
+    print('Telemetry warning', file=sys.stderr)
+    print(json.dumps(dict(type='turn.failed', error=dict(message='Model unavailable for this account.'))))
+    sys.exit(1)
+if event['text'] == 'stderr failure':
+    print('Session not found. API_KEY=' + os.environ.get('NAVOCODE_TEST_API_KEY', 'absent'), file=sys.stderr)
+    sys.exit(2)
 if event['text'] == 'empty reply': sys.exit(0)
 if event['text'] == 'block':
     (folder / 'fake-running').write_text(str(os.getpid()))
