@@ -73,7 +73,7 @@ Select a component or decision and suggest a change:
 
 > Billing should own eligibility policy. Account management should only expose ownership facts. Explain the effect on the migration.
 
-Your agent receives the feedback through the CLI, updates the specs, and explains the result in the same UI. You can ask questions, accept the design, and request implementation there. Implementation stays blocked while recorded architectural decisions lack human acceptance. The agent handles local coding details within the accepted constraints.
+The workspace resumes the original assistant chat for each message, updates the specs, and posts the reply in the same UI. This continues after the original assistant turn finishes. Codex, Claude Code, Cursor, and Copilot use their installed CLI; other assistants can supply a command adapter. You can ask questions, accept the design, and request implementation there. Implementation stays blocked while recorded architectural decisions lack human acceptance. The agent handles local coding details within the accepted constraints.
 
 The agent then updates source code, runs checks, and reconciles the observed implementation with the accepted architecture. Code and specs under `.navocode/changes/` are committed and pushed together through the assistant's existing Git tools and your authorization.
 
@@ -158,7 +158,20 @@ Run `navocode help` for proposal creation, publication, adoption, summaries, and
 
 Automated tests cover spec validation, source freshness, changed-file accounting, proposal conflicts, comment API behavior, self-contained installation for all four host layouts, browser feedback, and a complete author/reviewer/adoption lifecycle using a local Git remote. Claude's own validator checks the plugin and marketplace manifests.
 
-The interactive loop requires an **active assistant turn** that runs the feedback command. A browser click cannot wake an idle assistant by itself. If the host stops, ask it to resume the NavoCode session; no manual copying of UI feedback is needed while the local process remains alive.
+Workspace chat defaults to `--agent auto`. The installed skill identifies its host and uses that assistant's authenticated CLI. Each message resumes the exact original chat, preserving its saved conversation history and adding the current spec, source location, selected concept, and workspace message. Messages run in order; failed or timed-out turns show an error and a **Retry message** control. The workspace binds an exact host session ID and uses the host's resume command. It never selects the latest session, forks, or falls back to a fresh chat. Missing or inaccessible sessions produce an error. A process lock prevents two NavoCode workspaces from resuming the same chat concurrently; avoid simultaneous input from the original desktop/IDE while a workspace turn is running. CLI continuation does not guarantee that every desktop/IDE view updates live. Authentication and permissions still come from the host CLI.
+
+Choose a host explicitly with `--agent codex|claude|cursor|copilot`, or pass `--host HOST` to auto mode. Bind its exact existing chat ID with `--agent-session SESSION_ID` or `NAVOCODE_AGENT_SESSION`. In Codex, the current `CODEX_THREAD_ID` is detected automatically; other hosts must provide their actual session ID through the CLI or a host hook. Never guess an ID or use a session name/prefix. Install and sign in to the corresponding CLI first. Native adapters use documented noninteractive interfaces: [Codex](https://learn.chatgpt.com/docs/non-interactive-mode), [Claude Code](https://code.claude.com/docs/en/headless), [Cursor](https://cursor.com/docs/cli/headless), and [Copilot](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically).
+
+For any other assistant, supply a wrapper command:
+
+```sh
+navocode start --repo . --spec .navocode/changes/CHANGE/spec.json \
+  --agent custom --agent-session ORIGINAL_CHAT_ID --agent-command '["/absolute/path/to/assistant-wrapper", "argument"]'
+```
+
+The wrapper reads a text prompt from stdin, resumes the exact `agentSession` in the included JSON context, handles the event, prints only the final reply to stdout, and exits nonzero if the original session is busy, missing, or cannot be resumed. Custom adapters must not create replacement chats. It may use the assistant's CLI, SDK, or supported wake API. It is executed directly, without a shell. Only trusted local CLI configuration can select an executable; browser messages cannot choose a command.
+
+`--agent manual` preserves the active-turn polling workflow for hosts without a background interface. In this mode an idle assistant still needs to be resumed, and the UI makes the paused state explicit. `demo` always uses manual mode. Restart already-running workspace servers with the updated runtime to enable managed replies.
 
 The current release uses an external local browser. Native embedded assistant panels and automatic GitHub cloud-agent interaction are not included. Host packaging tests do not establish end-to-end behavior in every assistant; see [testing and compatibility](docs/TESTING.md) for the exact verification scope.
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
-import { startServer, sessionRequest, fixture, jsonWrite } from './helpers.js';
+import { startServer, sessionRequest, fixture, jsonWrite, project } from './helpers.js';
 import { join } from 'node:path';
 
 test('browser author: explore, send feedback, receive agent revision, accept, request implementation', async t => {
@@ -64,6 +64,7 @@ test('browser reviewer: compare edits, publish intent, no direct implementation 
   jsonWrite(f.path, f.spec);
   await page.locator('.graph').getByText(longContract, { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Inspect Independent audit adapter' }).waitFor();
+  await page.locator('.graph').getByText('0 incoming · 0 outgoing mapped connections',{exact:true}).waitFor();
   assert.equal(await page.locator('.graph svg .component-node').count(), 4);
   await page.getByRole('button', { name: 'Before', exact: true }).click();
   assert.equal(await page.locator('.graph').getByText(longContract, { exact: true }).count(), 0);
@@ -91,6 +92,8 @@ test('holistic flow uses compact nodes and labeled connections with stable posit
   const graph = page.locator('.graph');
   for (const text of [f.spec.title, f.spec.intent, 'component · Python', 'Delegated payer', 'In-process call', 'Decision needed: Who owns eligibility policy?', 'Open question: How do existing clients migrate?', 'Evidence: 1 claims need verification']) await graph.getByText(text, { exact: true }).first().waitFor();
   assert.ok(await graph.getByText('Changed', { exact: true }).count());
+  await graph.getByText('Group sources: JavaScript', {exact:true}).first().waitFor();
+  assert.equal(await graph.getByText('Type / technology not recorded', {exact:true}).count(), 0);
   assert.equal(await graph.getByText('Previously: ' + f.spec.components[2].current, { exact: true }).count(), 0);
   assert.equal(await graph.locator('.component-node .contract-label').count(), 0);
   assert.equal(await graph.locator('.map-edges [data-edge]').count(), f.spec.relations.filter(r => r.state !== 'current').length);
@@ -122,7 +125,7 @@ test('review scenarios: success, failure and retry traces preserve context and e
     {id:'retry',from:'accounts',to:'accounts',label:'Retry the billing request',state:'intended'});
   Object.assign(f.spec.relations[1],{protocol:'HTTPS',failure:'Reject an ineligible payer.',paths:['billing.js'],evidenceIds:['source-check'],decisionIds:['policy-owner']});
   const step=(id,relationId)=>({id,relationId});
-  const first=step('request','client-account'), call=step('bill','account-billing'), result=step('result','result'), response=step('response','response');
+  const first=step('request','client-account'), call={...step('bill','account-billing'), description:'Choose the delegated payer before charging the account.'}, result=step('result','result'), response=step('response','response');
   f.spec.scenarios=[
     {id:'success',title:'Billing succeeds',trigger:'The client submits an account.',outcome:'The client receives a billing result.',current:[first,response],intended:[first,call,result,response]},
     {id:'failure',title:'Billing rejects the payer',trigger:'The client submits an ineligible payer.',outcome:'The client receives a rejection.',current:[],intended:[first,call,step('reject','rejected'),response]},
@@ -131,7 +134,16 @@ test('review scenarios: success, failure and retry traces preserve context and e
   const {server,session}=await startServer({specPath:f.path,repo:f.repo,sessionPath});t.after(()=>{server.closeAllConnections();server.close();});
   const browser=await chromium.launch({headless:true});t.after(()=>browser.close());const page=await browser.newPage({viewport:{width:1440,height:1100}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(session.url);await page.getByRole('heading',{name:f.spec.title}).waitFor();
-  await page.locator('.scenario-graph').waitFor();assert.equal(await page.locator('.flow-step').count(),4);assert.equal(await page.locator('.flow-step.changed').count(),2);
+  await page.locator('.scenario-graph').waitFor();assert.equal(await page.locator('.flow-step').count(),4);assert.equal(await page.locator('.flow-step.changed').count(),3);
+  await page.locator('.scenario-graph').getByText('Who does what',{exact:true}).waitFor();
+  await page.locator('.scenario-graph .component-node').getByText(f.spec.components[2].intended,{exact:true}).waitFor();
+  const billingStep=page.locator('.flow-step[data-relation=account-billing]');
+  for (const value of ['Choose the delegated payer before charging the account.','Transport: HTTPS','On failure: Reject an ineligible payer.','Source: billing.js','Evidence (supported): Delegation preserves fallback.',`Decision: ${f.spec.decisions[0].title} — ${f.spec.decisions[0].choice}`]) {
+    await billingStep.getByText(value,{exact:true}).waitFor();
+  }
+  assert.ok(await billingStep.getByText('Added step',{exact:true}).count());
+  assert.equal(await page.locator('.flow-step').evaluateAll(nodes=>nodes.some(n=>{const box=n.querySelector('.step-background').getBBox();return [...n.querySelectorAll('text')].some(t=>{const b=t.getBBox();return b.y+b.height>box.y+box.height;});})),false,'Desktop explanations stay inside their cards');
+  await page.screenshot({path:'/tmp/navocode-helpful-flow-desktop.png',fullPage:true});
   const geometry=()=>page.locator('.scenario-graph .component-card').evaluateAll(ns=>ns.map(n=>['x','y','height'].map(k=>n.getAttribute(k))));const intended=await geometry();
   await page.getByRole('button',{name:'Next step',exact:true}).click();await page.getByText('Step 1 of 4',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Next step',exact:true}).click();await page.locator('#contract-details').getByText('Protocol: HTTPS',{exact:true}).waitFor();
@@ -154,6 +166,9 @@ test('review scenarios: success, failure and retry traces preserve context and e
   await page.locator('.compact-flow').waitFor();
   assert.ok(await page.locator('.scenario-graph').evaluate(el=>el.scrollWidth<=el.clientWidth+1), 'The complete flow must fit without horizontal panning.');
   assert.equal(await page.locator('.flow-endpoint').count(),12);
+  await page.locator('.scenario-graph .component-node').getByText(f.spec.components[2].intended,{exact:true}).waitFor();
+  await page.screenshot({path:'/tmp/navocode-helpful-flow-mobile.png',fullPage:true});
+  assert.equal(await page.locator('.flow-step').evaluateAll(nodes=>nodes.some(n=>{const box=n.querySelector('.step-background').getBBox();return [...n.querySelectorAll('text')].some(t=>{const b=t.getBBox();return b.y+b.height>box.y+box.height;});})),false,'Step explanations stay inside their cards');
   assert.ok(await page.locator('.scenario-graph').evaluate(el=>[...el.querySelectorAll('text')].every(n=>{const r=n.getBoundingClientRect(), box=el.getBoundingClientRect();return r.left>=box.left-1 && r.right<=box.right+1;})), 'Every flow label must stay visible.');
   await page.getByRole('button',{name:'Next step',exact:true}).click();await page.getByText('Step 1 of 6',{exact:true}).waitFor();
   await page.setViewportSize({width:1440,height:1100});await page.locator('.scenario-graph:not(.compact-flow)').waitFor();
@@ -162,5 +177,35 @@ test('review scenarios: success, failure and retry traces preserve context and e
 
   await page.getByLabel('Execution scenario').selectOption('');await page.locator('.flow-contract').first().click();await page.locator('#contract-details h3').waitFor();
   await page.getByRole('link',{name:'Architecture',exact:true}).click();await page.reload();await page.locator('.scenario-graph').waitFor();assert.equal(await page.locator('#error').isVisible(),false);
+  assert.deepEqual(errors,[]);
+});
+
+
+test('workspace chat resumes its original conversation after idle, displays failures, and retries without a parent poll', async t => {
+  const f=fixture(t), sessionPath=join(f.repo,'.navocode/local/session.json');
+  const originalId='00000000-0000-0000-0000-000000000123';
+  jsonWrite(join(f.repo,'.navocode/local/fake-chat.json'),{id:originalId,originalContext:'The original chat chose authorization as the policy owner.'});
+  const {server,session}=await startServer({specPath:f.path,repo:f.repo,sessionPath,agent:'custom',agentSession:originalId,agentCommand:['python3',join(project,'tests/fake_agent.py')]});
+  t.after(()=>{server.closeAllConnections();server.close();});
+  const browser=await chromium.launch({headless:true});t.after(()=>browser.close());
+  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto(session.url);await page.getByRole('heading',{name:f.spec.title}).waitFor();
+  await page.locator('#connection').getByText('Agent ready',{exact:true}).waitFor();
+  const send=async text=>{await page.getByLabel('Describe a question or architectural change').fill(text);await page.getByRole('button',{name:'Ask a question',exact:true}).click();};
+  await send('First question');await page.locator('#messages').getByText('Reply: First question',{exact:true}).waitFor();
+  await page.locator('#connection').getByText('Agent ready',{exact:true}).waitFor();
+  await send('Second question');await page.locator('#messages').getByText('Reply: Second question | Previous reply: Reply: First question',{exact:true}).waitFor();
+  await send('Recall original conversation');await page.locator('#messages').getByText('The original chat chose authorization as the policy owner.',{exact:true}).waitFor();
+  assert.equal(session.agentSession,originalId);
+  await send('fail once');await page.locator('#connection').getByText('Agent needs attention',{exact:true}).waitFor();
+  await page.locator('#messages').getByText('custom could not complete this message. The original chat may be busy or unavailable. Check its session ID, CLI sign-in, usage limits, and permissions, then retry.',{exact:true}).waitFor();
+  await page.getByRole('button',{name:'Retry message',exact:true}).click();
+  await page.locator('#messages .message:not(.human)').filter({hasText:'Reply: fail once'}).waitFor();
+  assert.equal(await page.locator('#messages .message.human').count(),4);
+  assert.equal(await page.getByRole('button',{name:'Retry message',exact:true}).count(),0);
+  await page.getByRole('button',{name:'Finish session',exact:true}).click();
+  await page.locator('#connection').getByText('Session finished',{exact:true}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'Ask a question',exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'Implement accepted design',exact:true}).isDisabled(),true);
   assert.deepEqual(errors,[]);
 });

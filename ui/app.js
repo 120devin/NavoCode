@@ -40,7 +40,7 @@ function render() {
   const pending = spec.decisions.filter(d => d.status !== 'accepted' || d.provenance !== 'human');
   if (pending.length) $('#health').append(badge(`${pending.length} engineer decisions need acceptance`, 'warning'));
   const implement = document.querySelector('[data-action="implement"]');
-  implement.disabled = pending.length > 0;
+  implement.disabled = pending.length > 0 || state.agent?.status === 'finished';
   implement.title = pending.length ? 'Accept architectural decisions before requesting implementation.' : '';
   $('#proposal-link').hidden = !state.baseline;
   if (scenarioId === null) scenarioId = spec.scenarios?.[0]?.id || '';
@@ -71,6 +71,35 @@ function architectureLayers(components, relations) {
   const layers = [];
   for (const c of components) { const level = rank(owner.get(c.id)); (layers[level] ||= []).push(c); }
   return layers;
+}
+// Prefer authored facts. File extensions describe source languages, not runtime guesses.
+function componentMetadata(component) {
+  const explicit = [component.kind, component.technology].filter(Boolean);
+  if (component.technology) return explicit.join(' · ');
+  const groups = state.spec.groups.filter(g => g.componentIds.includes(component.id));
+  const paths = [...new Set(groups.flatMap(g => g.paths))];
+  const languages = {js:'JavaScript',mjs:'JavaScript',cjs:'JavaScript',jsx:'JavaScript',ts:'TypeScript',tsx:'TypeScript',py:'Python',go:'Go',rs:'Rust',java:'Java',kt:'Kotlin',swift:'Swift',rb:'Ruby',php:'PHP',cs:'C#',cpp:'C++',c:'C',html:'HTML',css:'CSS',sql:'SQL',sh:'Shell'};
+  const sourceLanguages = [...new Set(paths.map(path => languages[path.split('.').pop().toLowerCase()]).filter(Boolean))];
+  if (sourceLanguages.length) explicit.push('Group sources: ' + sourceLanguages.join(', '));
+  else if (groups.length) explicit.push('Area: ' + groups.map(g => g.title).join(', '));
+  else {
+    const incoming = state.spec.relations.filter(r => r.to === component.id).length;
+    const outgoing = state.spec.relations.filter(r => r.from === component.id).length;
+    explicit.push(`${incoming} incoming · ${outgoing} outgoing mapped connections`);
+  }
+  return explicit.join(' · ');
+}
+function stepNotes(step, relation) {
+  const notes = [];
+  if (step.description) notes.push([step.description, 'component-responsibility']);
+  if (relation.protocol) notes.push(['Transport: ' + relation.protocol, 'component-meta']);
+  if (relation.failure) notes.push(['On failure: ' + relation.failure, 'map-warning']);
+  if (relation.paths?.length) notes.push(['Source: ' + relation.paths.join(', '), 'component-meta']);
+  const evidence = state.spec.evidence.filter(e => relation.evidenceIds?.includes(e.id));
+  for (const e of evidence) notes.push([`Evidence (${e.status}${state.report.staleEvidence?.includes(e.id) ? ', stale' : ''}): ${e.claim}`, e.status === 'supported' && !state.report.staleEvidence?.includes(e.id) ? 'component-meta' : 'map-warning']);
+  if (!evidence.length) notes.push(['Evidence: no checks linked to this step', 'map-warning']);
+  for (const d of state.spec.decisions.filter(d => relation.decisionIds?.includes(d.id))) notes.push([`${d.status === 'accepted' && d.provenance === 'human' ? 'Decision' : 'Decision needed'}: ${d.title} — ${d.choice}`, d.status === 'accepted' && d.provenance === 'human' ? 'component-meta' : 'map-warning']);
+  return notes;
 }
 function graph(components) {
   const wrap = el('div', undefined, 'architecture-map'), canvas = el('div', undefined, 'graph'), ns = 'http://www.w3.org/2000/svg';
@@ -119,7 +148,7 @@ function graph(components) {
   for (const layer of layers) for (let offset = 0; offset < layer.length; offset += 3) {
     const row = layer.slice(offset, offset + 3); let height = 0, laneHeight = 0;
     row.forEach((c, column) => {
-      const metadata = [c.kind, c.technology].filter(Boolean).join(' · ') || 'Type / technology not recorded';
+      const metadata = componentMetadata(c);
       const h = 42 + lines(c.name, 24).length * 17 + lines(metadata, 25).length * 17;
       const contracts = allRelations.filter(r => r.from === c.id);
       const lanes = contracts.map(r => 20 + lines(r.label, 26).length * 17 + (r.protocol ? lines(r.protocol, 26).length * 17 : 0));
@@ -200,25 +229,51 @@ function scenarioGraph(scenario) {
   let y = 25; y += text(svg, scenario.title, 20, y, 'map-title', width - 45) + 7;
   y += text(svg, 'Trigger: ' + scenario.trigger, 20, y, 'component-responsibility', width - 45) + 5;
   y += text(svg, 'Result: ' + scenario.outcome, 20, y, 'component-responsibility', width - 45) + 15;
-  const top = y, headerHeight = compact ? 0 : Math.max(...participants.map(id => lines(name(id), cardWidth - 20).length * 17 + 32)); y += compact ? 15 : headerHeight + 25;
+  y += text(svg, 'Who does what', 20, y, 'contract-label', width - 45) + 8;
+  const component = id => state.spec.components.find(c => c.id === id);
+  const participantLines = (id, v) => [
+    [name(id), 'component-name'],
+    [componentMetadata(component(id)), 'component-meta'],
+    [component(id)[v] || 'Responsibility needs description', 'component-responsibility'],
+    ...(component(id).boundary ? [['Boundary: ' + component(id).boundary, 'component-meta']] : [])
+  ];
+  const participantHeight = (id, available) => 26 + Math.max(...['current', 'intended'].map(v => participantLines(id, v).reduce((height, [value]) => height + lines(value, available).length * 17 + 5, 0)));
+  if (compact) for (const id of participants) {
+    const height = participantHeight(id, width - 65), g = make('g', {role:'button', tabindex:0, 'aria-label':`Inspect ${name(id)}`, 'data-concept':id, class:'component-node'});
+    g.append(make('rect', {x:15, y:y-12, width:width-30, height, rx:8, class:'component-card'}));
+    let cursor=y+10;
+    for (const [value, cls] of participantLines(id, version)) cursor += text(g, value, 25, cursor, cls, width-65) + 5;
+    g.onclick=()=>choose(id); g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(id);}}; svg.append(g); y += height + 12;
+  }
+  const top = y, headerHeight = compact || !participants.length ? 0 : Math.max(...participants.map(id => participantHeight(id, cardWidth - 20))); y += compact ? 15 : headerHeight + 25;
   const slots = [];
   for (let i = 0; i < Math.max(scenario.current.length, scenario.intended.length); i++) {
-    const height = Math.max(...['current','intended'].map(v => { const step = scenario[v][i]; if (!step) return 0; const r = relations.get(step.relationId); return 55 + lines(r.label, width - 65).length * 17 + lines(step.description || '', width - 65).length * 17 + (compact ? Math.max(lines(name(r.from), endpointWidth - 16).length, lines(name(r.to), endpointWidth - 16).length) * 17 + 20 : r.from === r.to ? 25 : 0); }));
+    const height = Math.max(...['current','intended'].map(v => {
+      const step = scenario[v][i]; if (!step) return 0;
+      const r = relations.get(step.relationId);
+      const endpointHeight = compact ? Math.max(lines(name(r.from), endpointWidth - 16).length, lines(name(r.to), endpointWidth - 16).length) * 17 + 32 : r.from === r.to ? 45 : 25;
+      return 50 + lines(r.label, width - 65).length * 17 + lines(`${name(r.from)} → ${name(r.to)}`, width - 65).length * 17 + endpointHeight + stepNotes(step, r).reduce((height, [value]) => height + lines(value, width - 65).length * 17 + 5, 0);
+    }));
     slots.push({y, height}); y += height;
   }
   if (!scenario[version].length) text(svg, `No ${version === 'current' ? 'Before' : 'Intended'} steps recorded for this scenario.`, 20, (slots[0]?.y || y) + 20, 'map-warning', width - 45);
   const defs = make('defs', {}), marker = make('marker', {id:'flow-arrow', viewBox:'0 0 10 10', refX:9, refY:5, markerWidth:6, markerHeight:6, orient:'auto'}); marker.append(make('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'#58718d'})); defs.append(marker); svg.append(defs);
   for (const id of compact ? [] : participants) {
     const c = state.spec.components.find(c => c.id === id), x = positions.get(id), g = make('g', {role:'button',tabindex:0,'aria-label':`Inspect ${c.name}`,'data-concept':id,class:'component-node'});
-    g.append(make('line',{x1:x+cardWidth/2,x2:x+cardWidth/2,y1:top+headerHeight,y2:y,class:'flow-lifeline'}), make('rect',{x,y:top,width:cardWidth,height:headerHeight,rx:8,class:'component-card'})); text(g,c.name,x+10,top+25,'component-name',cardWidth-20);
+    g.append(make('line',{x1:x+cardWidth/2,x2:x+cardWidth/2,y1:top+headerHeight,y2:y,class:'flow-lifeline'}), make('rect',{x,y:top,width:cardWidth,height:headerHeight,rx:8,class:'component-card'})); let cursor=top+25;
+    for (const [value, cls] of participantLines(id, version)) cursor += text(g,value,x+10,cursor,cls,cardWidth-20) + 5;
     g.onclick=()=>choose(id); g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose(id);}}; svg.append(g);
   }
   scenario[version].forEach((step,i)=>{
     const r=relations.get(step.relationId), slot=slots[i], x=positions.get(r.from)+cardWidth/2, target=positions.get(r.to)+cardWidth/2;
-    const other=scenario[version==='current'?'intended':'current'].find(s=>s.id===step.id), changed=other?.relationId!==step.relationId || other?.description!==step.description;
+    const otherSteps=scenario[version==='current'?'intended':'current'], otherIndex=otherSteps.findIndex(s=>s.id===step.id), other=otherSteps[otherIndex];
+    const changed=other?.relationId!==step.relationId || other?.description!==step.description || (other && otherIndex!==i) || r.state!=='both';
+    const changeLabel=!other ? (version==='intended' ? 'Added step' : 'Removed step') : changed ? 'Changed step' : 'Unchanged step';
     const g=make('g',{role:'button',tabindex:0,'aria-label':`Step ${i+1}: ${r.label}`,'data-concept':r.id,'data-relation':r.id,'data-step-index':i,class:`flow-step ${changed?'changed':''}`});
     g.append(make('rect',{x:15,y:slot.y-12,width:width-30,height:slot.height-10,rx:5,class:'step-background'}));
-    let cursor=slot.y+5; cursor+=text(g,`${i+1}. ${r.label}`,25,cursor,'contract-label',width-65)+10;
+    let cursor=slot.y+5; cursor+=text(g,`${i+1}. ${r.label}`,25,cursor,'contract-label',width-65)+5;
+    cursor+=text(g,changeLabel,25,cursor,changed?'component-change':'component-meta',width-65)+5;
+    if (!compact) cursor+=text(g,`${name(r.from)} → ${name(r.to)}`,25,cursor,'component-meta',width-65)+5;
     if (compact) {
       const endpointHeight = Math.max(lines(name(r.from), endpointWidth-16).length, lines(name(r.to), endpointWidth-16).length) * 17 + 16;
       for (const [id, left] of [[r.from, 25], [r.to, width-25-endpointWidth]]) {
@@ -231,7 +286,7 @@ function scenarioGraph(scenario) {
     const path=x===target?`M ${x} ${cursor} h 55 v 20 h -55`:`M ${x} ${cursor} H ${target}`;
     g.append(make('path',{d:path,class:'edge','marker-end':'url(#flow-arrow)'})); cursor+=x===target?45:25;
     }
-    if(step.description) text(g,step.description,25,cursor,'component-meta',width-65);
+    for (const [value, cls] of stepNotes(step, r)) cursor += text(g,value,25,cursor,cls,width-65) + 5;
     g.onclick=()=>{traceIndex=i;choose(r.id,false);}; g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();traceIndex=i;choose(r.id,false);}}; svg.append(g);
   });
   svg.setAttribute('viewBox',`0 0 ${width} ${y+20}`); canvas.append(svg); return canvas;
@@ -331,6 +386,12 @@ function renderMessages() {
   const box = $('#messages'), nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80; box.replaceChildren();
   for (const event of state.events.slice(-8)) {
     const p = el('div', undefined, 'message human'); p.append(el('small', `You · ${event.action} · ${event.status}`), el('div', event.text || event.action)); box.append(p);
+    if (event.error) p.append(el('div', event.error, 'warning-text'));
+    if (event.status === 'failed' && state.agent?.mode !== 'manual' && state.agent?.status !== 'finished') {
+      const retry = el('button', 'Retry message'); retry.type = 'button';
+      retry.onclick = async () => { retry.disabled = true; try { await api('retry', {id:event.id}); error(''); await refresh(); } catch (e) { error(e.message); retry.disabled = false; } };
+      p.append(retry);
+    }
     for (const reply of state.messages.filter(m => m.eventId === event.id)) { const r = el('div', undefined, 'message'); r.append(el('small', 'Agent'), el('div', reply.text)); box.append(r); }
   }
   if (nearBottom) box.scrollTop = box.scrollHeight;
@@ -347,8 +408,12 @@ document.querySelectorAll('[data-action]').forEach(b => { if (b.type !== 'submit
 $('#clear-target').onclick = () => choose(null);
 async function refresh() {
   try {
-    const next = await api('state'), signature = JSON.stringify([next.revision, next.events, next.messages, next.report]); state = next;
-    $('#connection').textContent = next.agentConnected ? 'Agent connected' : 'Waiting for agent';
+    const next = await api('state'), signature = JSON.stringify([next.revision, next.events, next.messages, next.report, next.agent]); state = next;
+    const status = next.agent?.status || (next.agentConnected ? 'listening' : 'offline');
+    $('#connection').textContent = {ready:'Agent ready',responding:'Agent responding',error:'Agent needs attention',finished:'Session finished',listening:'Agent listening',offline:'Agent paused'}[status];
+    $('#agent-status').textContent = {ready:'Messages resume your connected assistant chat, even after its previous turn ends.',responding:'Your assistant is handling a message. New messages will wait their turn.',error:'A message failed. Review the error below and retry when ready.',finished:'This session has finished. Start a new NavoCode session to continue.',listening:'Your assistant is listening for workspace messages.',offline:'Your assistant is paused. Messages are queued; resume this NavoCode session in your assistant to receive a reply.'}[status];
+    document.querySelectorAll('[data-action]').forEach(b => { if (b.dataset.action !== 'implement') b.disabled = status === 'finished'; });
+    $('#feedback').disabled = status === 'finished';
     if (signature !== lastSignature) { lastSignature = signature; render(); }
   } catch (e) { error(`Workspace unavailable: ${e.message}. Ask your agent to restart the session if needed.`); }
 }
