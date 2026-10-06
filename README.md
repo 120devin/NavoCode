@@ -10,15 +10,21 @@ NavoCode **0.2.0** includes a working CLI, local browser UI, portable assistant 
 
 ## Install
 
-You need **Python 3.10+** and **Git**. Reviewing or publishing GitHub proposals also requires the [GitHub CLI](https://cli.github.com/) authenticated with access to the repository (`gh auth login`).
+You need **Python 3.10+** and **Git**. Installing the npm CLI also requires **Node.js 20+**. Python must be available as `python3`, or set `NAVOCODE_PYTHON` to its executable path. Reviewing or publishing GitHub proposals also requires the [GitHub CLI](https://cli.github.com/) authenticated with access to the repository (`gh auth login`).
 
-From a checkout of this repository, install the skill into the project you want to work on:
+### Install from npm
+
+Install the CLI from [npm](https://www.npmjs.com/package/navocode) and add the skill to your project:
 
 ```sh
-python3 bin/navocode.py install --host codex --project /path/to/your-project
+npm install -g navocode
+navocode help
+navocode install --host codex --project /path/to/your-project
 ```
 
-Replace `codex` with `claude`, `cursor`, or `copilot`. The installer copies a self-contained skill and runtime into the project. It does not require a global CLI installation or modify your existing assistant instructions. Start a new assistant session after installation.
+The npm package bundles the Python runtime, local UI, schema, examples, and skill installer.
+
+Replace `codex` with `claude`, `cursor`, or `copilot`. The installer copies a self-contained skill and runtime into the project. It does not modify your existing assistant instructions. Start a new assistant session after installation.
 
 | Assistant | Installed location | How to invoke |
 | --- | --- | --- |
@@ -30,8 +36,20 @@ Replace `codex` with `claude`, `cursor`, or `copilot`. The installer copies a se
 The project skill contains the CLI, UI, schema, and workflow instructions. You can commit that directory to share the same version with your team. Reinstallation and uninstall refuse to overwrite locally edited skill files.
 
 ```sh
-python3 bin/navocode.py uninstall --host codex --project /path/to/your-project
+navocode uninstall --host codex --project /path/to/your-project
 ```
+
+### Install from source
+
+To use a source checkout without Node.js:
+
+```sh
+git clone https://github.com/120devin/NavoCode.git
+cd NavoCode
+python3 bin/navocode.py install --host codex --project /path/to/your-project
+```
+
+From the checkout, you can also install the npm CLI locally with `npm install -g .`. To uninstall a skill without the npm CLI, run `python3 bin/navocode.py uninstall --host codex --project /path/to/your-project`.
 
 ### Native Claude Code plugin
 
@@ -43,16 +61,18 @@ claude --plugin-dir /absolute/path/to/NavoCode
 
 Then invoke `/navocode:navocode` with your authoring request or PR URL. The repository also contains a Claude marketplace manifest for distribution. No MCP server is required.
 
-### Optional npm compatibility CLI
+### Upgrade
 
-With Node.js 20+ and Python installed, from this checkout:
+Update the CLI and then reinstall the skill in each project:
 
 ```sh
-npm install -g .
-navocode help
+npm install -g navocode@latest
+navocode install --host codex --project /path/to/your-project
 ```
 
-The skill installer also works without this step. NavoCode has not been published to the npm registry; do not assume `npm install -g navocode` installs this project.
+Replace `codex` with your assistant host. Updating the global CLI does not update skills already copied into projects. Reinstall with `--pr-mode always` if you use that preference. The installer refuses to replace locally edited skills; preserve and reconcile those edits before upgrading. Start a new assistant session after reinstalling.
+
+Maintainer instructions: [manual npm releases](docs/RELEASING.md).
 
 ## Author a change
 

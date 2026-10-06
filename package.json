@@ -12,7 +12,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/120devin/NavoCode.git"
+    "url": "git+https://github.com/120devin/NavoCode.git"
   },
   "files": [
     "bin",
@@ -24,15 +24,25 @@
     "examples",
     "README.md",
     "LICENSE",
-    "docs/TESTING.md"
+    "docs/TESTING.md",
+    "docs/RELEASING.md"
   ],
   "scripts": {
     "test": "python3 -B -m unittest discover -s tests -p \"test_*.py\"",
     "test:browser": "node --test tests/browser.e2e.js",
     "check": "node --check bin/navocode.js && node --check ui/app.js && npm test",
-    "demo": "node bin/navocode.js demo --open"
+    "demo": "node bin/navocode.js demo --open",
+    "test:package": "node scripts/test-package.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2"
+  },
+  "homepage": "https://github.com/120devin/NavoCode#readme",
+  "bugs": {
+    "url": "https://github.com/120devin/NavoCode/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

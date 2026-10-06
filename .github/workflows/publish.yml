@@ -1,0 +1,63 @@
+name: Publish npm package
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing published GitHub Release tag (for example v0.2.0)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Verify published GitHub Release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,tagName > "$RUNNER_TEMP/release.json"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync, appendFileSync } from 'node:fs';
+          const release = JSON.parse(readFileSync(`${process.env.RUNNER_TEMP}/release.json`, 'utf8'));
+          assert.equal(release.isDraft, false, 'Publish the GitHub Release before running this workflow');
+          assert.equal(release.tagName, process.env.RELEASE_TAG);
+          const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
+          assert.equal(release.isPrerelease, version.includes('-'), 'Prerelease flag must match package version');
+          appendFileSync(process.env.GITHUB_OUTPUT, `dist_tag=${release.isPrerelease ? 'next' : 'latest'}\n`);
+          JS
+      - run: npm ci
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - name: Verify release version and packaged installation
+        run: npm run test:package
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+      - name: Publish using npm trusted publishing
+        run: npm publish --tag "$NPM_DIST_TAG"
+        env:
+          NPM_DIST_TAG: ${{ steps.release.outputs.dist_tag }}
