@@ -3,31 +3,14 @@
 NavoCode publishes as the public npm package `navocode`. Releases and npm
 publication are manual. Pushes and GitHub Release events do not publish packages.
 
-## First publication and trusted publishing
+## Configure trusted publishing
 
-The package has not yet been published. A maintainer with the intended npm
-account must enable two-factor authentication in their npm account settings,
-then make the first publication from the reviewed release checkout:
+[NavoCode 0.2.0 is published on npm](https://www.npmjs.com/package/navocode).
+The first publication was completed interactively. Do not rerun publication for
+that version.
 
-```sh
-npm ci
-npm run check
-npx playwright install chromium
-npm run test:browser
-npm run test:package
-npm login
-npm publish --access public
-```
-
-Complete npm's authentication and two-factor verification prompts. Login alone
-is insufficient for publication. If publishing fails with a two-factor
-authentication requirement, enable 2FA, log in again, and retry the same version;
-a rejected publication does not consume the version. Confirm the
-package name is still available before publishing. Do not publish from a
-checkout containing unintended edits to files included in the package.
-
-After the package exists, open its settings on npmjs.com and add a GitHub Actions
-trusted publisher with:
+For subsequent workflow releases, open the package settings on npmjs.com and add
+a GitHub Actions trusted publisher with:
 
 | Field | Value |
 | --- | --- |

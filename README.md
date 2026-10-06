@@ -14,7 +14,7 @@ You need **Python 3.10+** and **Git**. Installing the npm CLI also requires **No
 
 ### Install from npm
 
-The first npm publication is pending. Once published, install the CLI and add the skill to your project:
+Install the CLI from [npm](https://www.npmjs.com/package/navocode) and add the skill to your project:
 
 ```sh
 npm install -g navocode
@@ -41,7 +41,7 @@ navocode uninstall --host codex --project /path/to/your-project
 
 ### Install from source
 
-To install before npm publication, or to use a source checkout without Node.js:
+To use a source checkout without Node.js:
 
 ```sh
 git clone https://github.com/120devin/NavoCode.git
@@ -63,7 +63,7 @@ Then invoke `/navocode:navocode` with your authoring request or PR URL. The repo
 
 ### Upgrade
 
-After npm publication, update the CLI and then reinstall the skill in each project:
+Update the CLI and then reinstall the skill in each project:
 
 ```sh
 npm install -g navocode@latest
