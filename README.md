@@ -166,7 +166,11 @@ Choose a host explicitly with `--agent codex|claude|cursor|copilot`, or pass `--
 
 When a CLI exits unsuccessfully, the workspace displays its exit code and error explanation. A bounded, credential-redacted diagnostic is saved to `.navocode/local/last-agent-error.json` in the workspace repository, with the host, bound chat ID, and event ID. Structured host errors take precedence over telemetry warnings. This file excludes the prompt and command arguments. If no explanation is available, the UI says so instead of guessing that the chat is busy. Updating a source checkout does not refresh installed runtime copies: rerun `python3 bin/navocode.py install --host codex --project /path/to/your-project` (use the corresponding host), then restart the workspace.
 
-For any other assistant, supply a wrapper command:
+An owning-host MCP messaging adapter is available with `--agent-host-command '["/absolute/path/to/host-mcp", "arg"]'` (or `NAVOCODE_HOST_MCP_COMMAND`). It applies to Codex, Claude, Cursor, Copilot, or custom hosts and requires a connected gateway exposing `send_message_to_thread` and `read_thread`. The gateway must use the existing owner's connection and enforce the host's permissions; launching a new assistant process behind the gateway would reintroduce the ownership problem. NavoCode waits for an idle turn, sends to the exact bound chat, and matches only that message's final reply. Private delivery records recover from lost connections without duplicate submissions. Stopping the workspace closes its client, but a submitted host turn may continue in the original assistant.
+
+This is a gateway adapter, not four verified native integrations. Stock CLIs do not all expose that MCP contract. Codex desktop's external client probe was rejected by its authorization check; no bypass is implemented. Cursor ACP and Claude streaming input describe connections managed by an integration, rather than a guaranteed attach route to an arbitrary existing interactive process. Copilot supports connecting an SDK client to an existing configured runtime server. An already-open desktop/CLI chat still requires a supported, authorized connection to its owner. Native authenticated end-to-end support for all four remains unverified.
+
+See the [host messaging contract](docs/HOST_MESSAGING.md) for gateway response formats, delivery records, and verification scope. For assistants providing a direct one-message runner instead, supply a wrapper command:
 
 ```sh
 navocode start --repo . --spec .navocode/changes/CHANGE/spec.json \

@@ -99,9 +99,24 @@ def session_lock(mode, identifier):
                 lock.seek(0); msvcrt.locking(lock.fileno(), msvcrt.LK_UNLCK, 1)
 
 
-def resolve_agent(mode, host=None, command=None, runtime_root=None, session_id=None):
+def resolve_agent(mode, host=None, command=None, runtime_root=None, session_id=None, host_command=None):
     if mode not in ('auto', 'manual', 'custom', *HOSTS):
         raise ValueError('Agent must be auto, codex, claude, cursor, copilot, custom, or manual')
+    host_command = host_command or (os.environ.get('NAVOCODE_HOST_MCP_COMMAND') if not command and mode != 'manual' else None)
+    if host_command and command: raise ValueError('Choose either --agent-command or --agent-host-command')
+    if host_command:
+        if mode == 'manual': raise ValueError('Host messaging requires an assistant host, not manual mode')
+        selected = (host or detect_host(runtime_root)) if mode == 'auto' else mode
+        if not selected: raise ValueError('Choose --agent HOST for host messaging')
+        if selected not in (*HOSTS, 'custom'): raise ValueError('Unknown assistant host')
+        argv = json.loads(host_command) if isinstance(host_command,str) else host_command
+        if not isinstance(argv,list) or not argv or not all(isinstance(a,str) and a for a in argv):
+            raise ValueError('Host MCP command must be a JSON array of nonempty arguments')
+        binary = shutil.which(argv[0])
+        if not binary: raise ValueError('Host MCP executable unavailable')
+        from .host import HostAgentRunner
+        identifier = session_id_for('codex' if selected == 'codex' else 'custom',session_id)
+        return HostAgentRunner(selected,[binary,*argv[1:]],session_id=identifier)
     if command:
         if mode not in ('auto', 'custom'): raise ValueError('--agent-command requires --agent custom or auto')
         argv = json.loads(command) if isinstance(command, str) else command
@@ -123,6 +138,7 @@ def resolve_agent(mode, host=None, command=None, runtime_root=None, session_id=N
 
 
 class AgentRunner:
+    transport = 'cli'
     def __init__(self, mode, command, timeout=600, session_id=None):
         self.mode, self.command, self.timeout = mode, command, timeout
         self.session_id = session_id_for(mode, session_id)
@@ -168,7 +184,7 @@ class AgentRunner:
         with session_lock(self.mode, self.session_id):
             return self._respond(workspace, event, history)
 
-    def _respond(self, workspace, event, history):
+    def prompt(self, workspace, event, history):
         # No browser-provided value is interpreted as a shell command or executable.
         prompt = '''Continue the existing chat identified by agentSession. Handle exactly one NavoCode workspace message and return a plain-language reply. Preserve the original conversation context. Never create or fork a chat.
 Read the spec and relevant source. Do not start another workspace, poll feedback, or acknowledge via HTTP; the server posts your final reply.
@@ -185,6 +201,10 @@ Workspace context and current human event (JSON):
                                   mode=workspace.mode, agentSession=self.session_id, continuation='resume', cliPath=str(ROOT / 'bin/navocode.py'),
                                   reviewContextPath=str(Path(workspace.baseline).with_name('context.json')) if workspace.baseline else None,
                                   history=history, event=event), ensure_ascii=False)
+        return prompt
+
+    def _respond(self, workspace, event, history):
+        prompt = self.prompt(workspace, event, history)
         folder_root = Path(workspace.repo) / '.navocode/local'
         folder_root.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='navocode-agent-', dir=folder_root) as folder:

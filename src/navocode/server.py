@@ -15,19 +15,19 @@ from .core import ROOT, MAX_BYTES, read_json, write_json, assert_spec, inspect, 
 
 class Workspace(ThreadingHTTPServer):
     daemon_threads = True
-    def __init__(self, spec_path, repo, mode='author', port=0, baseline=None, agent='manual', host=None, agent_command=None, agent_session=None):
+    def __init__(self, spec_path, repo, mode='author', port=0, baseline=None, agent='manual', host=None, agent_command=None, agent_session=None, agent_host_command=None):
         assert_spec(read_json(spec_path))
         if mode not in ('author', 'review'): raise ValueError('Mode must be author or review')
         self.spec_path, self.repo, self.mode, self.baseline = str(Path(spec_path).resolve()), str(Path(repo).resolve()), mode, baseline
         self.token = secrets.token_hex(24)
         self.events, self.messages, self.last_read = [], [], 0
         self.condition = threading.Condition(); self.waiting = False; self.stopping = False
-        self.agent = resolve_agent(agent, host, agent_command, ROOT, agent_session); self.agent_error = ''; self.agent_busy = False
+        self.agent = resolve_agent(agent, host, agent_command, ROOT, agent_session, agent_host_command); self.agent_error = ''; self.agent_busy = False
         super().__init__(('127.0.0.1', port), Handler)
         self.origin = f'http://127.0.0.1:{self.server_address[1]}'
         if self.agent: threading.Thread(target=self.agent_loop, daemon=True).start()
     def descriptor(self):
-        return dict(url=self.origin + '/#' + self.token, origin=self.origin, token=self.token, pid=__import__('os').getpid(), specPath=self.spec_path, repo=self.repo, mode=self.mode, baselinePath=self.baseline, agentMode=self.agent.mode if self.agent else 'manual', agentSession=self.agent.session_id if self.agent else None)
+        return dict(url=self.origin + '/#' + self.token, origin=self.origin, token=self.token, pid=__import__('os').getpid(), specPath=self.spec_path, repo=self.repo, mode=self.mode, baselinePath=self.baseline, agentMode=self.agent.mode if self.agent else 'manual', agentSession=self.agent.session_id if self.agent else None, agentTransport=self.agent.transport if self.agent else 'manual')
     def state(self):
         spec = assert_spec(read_json(self.spec_path))
         try: report = inspect(spec, self.repo)
@@ -39,7 +39,7 @@ class Workspace(ThreadingHTTPServer):
     def agent_state(self):
         if self.stopping: return dict(mode=self.agent.mode if self.agent else 'manual', status='finished', error='')
         if self.agent:
-            return dict(mode=self.agent.mode, sessionId=self.agent.session_id, status='responding' if self.agent_busy else 'error' if self.agent_error else 'ready', error=self.agent_error)
+            return dict(mode=self.agent.mode, sessionId=self.agent.session_id, transport=self.agent.transport, status='responding' if self.agent_busy else 'error' if self.agent_error else 'ready', error=self.agent_error)
         return dict(mode='manual', status='listening' if self.waiting else 'offline', error='')
 
     def finish_event(self, event, message):
