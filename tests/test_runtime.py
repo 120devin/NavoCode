@@ -225,7 +225,7 @@ class RuntimeTests(unittest.TestCase):
             stream=StringIO()
             with redirect_stdout(stream): cli.main(['review','https://github.com/owner/repo/pull/7'])
             self.assertEqual(json.loads(stream.getvalue())['workspace'],workspace)
-            self.assertEqual(start.call_args.args[0],dict(repo=str(self.repo),spec=str(self.path),baseline='baseline.json',mode='review',open=True,agent='auto',host=None,agent_command=None,agent_session=None))
+            self.assertEqual(start.call_args.args[0],dict(repo=str(self.repo),spec=str(self.path),baseline='baseline.json',mode='review',open=True,agent='auto',host=None,agent_command=None,agent_session=None,agent_host_command=None))
             start.reset_mock()
             with redirect_stdout(StringIO()): cli.main(['review','https://github.com/owner/repo/pull/7','--prepare-only'])
             start.assert_not_called()

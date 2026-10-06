@@ -24,7 +24,8 @@
     "examples",
     "README.md",
     "LICENSE",
-    "docs/TESTING.md"
+    "docs/TESTING.md",
+    "docs/HOST_MESSAGING.md"
   ],
   "scripts": {
     "test": "python3 -B -m unittest discover -s tests -p \"test_*.py\"",

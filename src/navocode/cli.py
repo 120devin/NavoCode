@@ -33,6 +33,8 @@ summary --spec FILE
 review PR_URL [--change ID] [--agent HOST] [--agent-session SESSION_ID] [--prepare-only]
 Custom runner: start ... --agent custom --agent-command '["/path/to/runner", "arg"]'
 The custom runner reads a prompt from stdin and writes a final reply to stdout.
+Host messaging: start ... --agent HOST --agent-host-command '["/path/to/host-mcp", "arg"]'
+The host MCP server must expose original-chat messaging and conversation reads.
 review-bind --context FILE --spec FILE
 proposal create --spec FILE --baseline FILE --context FILE --rationale TEXT --out FILE
 proposal show --proposal FILE
@@ -55,15 +57,16 @@ def start(options):
     args = [sys.executable, str(ROOT / 'bin/navocode.py'), 'serve', '--repo', str(root_of(options.get('repo') or '.')), '--spec', str(Path(options['spec']).resolve()), '--session', str(session), '--mode', options.get('mode') or 'author', '--port', options.get('port') or '0', '--agent', options.get('agent') or 'auto']
     if options.get('host'): args += ['--host', options['host']]
     if options.get('agent_command'): args += ['--agent-command', options['agent_command']]
+    if options.get('agent_host_command'): args += ['--agent-host-command', options['agent_host_command']]
     if options.get('baseline'): args += ['--baseline', str(Path(options['baseline']).resolve())]
-    runner = resolve_agent(options.get('agent') or 'auto', options.get('host'), options.get('agent_command'), ROOT, options.get('agent_session'))
+    runner = resolve_agent(options.get('agent') or 'auto', options.get('host'), options.get('agent_command'), ROOT, options.get('agent_session'), options.get('agent_host_command'))
     if runner: args += ['--agent-session', runner.session_id]
     child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     for _ in range(100):
         if session.exists():
             descriptor = read_json(session)
             if options.get('open'): webbrowser.open(descriptor['url'])
-            return dict(session=str(session), url=descriptor['url'], pid=descriptor['pid'], agentMode=descriptor['agentMode'], agentSession=descriptor.get('agentSession'), next='Workspace messages resume the bound assistant chat automatically.' if descriptor['agentMode'] != 'manual' else f'navocode feedback --session {session} --wait 25')
+            return dict(session=str(session), url=descriptor['url'], pid=descriptor['pid'], agentMode=descriptor['agentMode'], agentSession=descriptor.get('agentSession'), agentTransport=descriptor.get('agentTransport'), next='Workspace messages use the configured original-chat runner.' if descriptor['agentMode'] != 'manual' else f'navocode feedback --session {session} --wait 25')
         if child.poll() is not None: break
         time.sleep(.05)
     raise ValueError('UI failed to start. Run serve in the foreground for diagnostics.')
@@ -71,7 +74,7 @@ def start(options):
 def main(argv=None):
     parser = argparse.ArgumentParser(description='NavoCode architecture workspace')
     parser.add_argument('command', nargs='?', default='help'); parser.add_argument('arguments', nargs='*')
-    keys = ('repo', 'id', 'title', 'intent', 'base', 'spec', 'mode', 'port', 'session', 'wait', 'event', 'message', 'baseline', 'context', 'out', 'rationale', 'proposal', 'host', 'project', 'pr-mode', 'change', 'agent', 'agent-command', 'agent-session')
+    keys = ('repo', 'id', 'title', 'intent', 'base', 'spec', 'mode', 'port', 'session', 'wait', 'event', 'message', 'baseline', 'context', 'out', 'rationale', 'proposal', 'host', 'project', 'pr-mode', 'change', 'agent', 'agent-command', 'agent-session', 'agent-host-command')
     for key in keys: parser.add_argument('--' + key)
     for key in ('open', 'ready', 'prepare-only'): parser.add_argument('--' + key, action='store_true')
     options = vars(parser.parse_args(argv)); command = options['command']; args = options['arguments']
@@ -105,7 +108,7 @@ def main(argv=None):
     elif command == 'serve':
         port = int(options.get('port') or 0)
         if not 0 <= port <= 65535: raise ValueError('Invalid port')
-        server = Workspace(need('spec'), repo(), options.get('mode') or 'author', port, options.get('baseline'), agent=options.get('agent') or 'auto', host=options.get('host'), agent_command=options.get('agent_command'), agent_session=options.get('agent_session'))
+        server = Workspace(need('spec'), repo(), options.get('mode') or 'author', port, options.get('baseline'), agent=options.get('agent') or 'auto', host=options.get('host'), agent_command=options.get('agent_command'), agent_session=options.get('agent_session'), agent_host_command=options.get('agent_host_command'))
         if options.get('session'): write_json(options['session'], server.descriptor())
         output(server.descriptor())
         if options['open']: webbrowser.open(server.descriptor()['url'])
@@ -117,7 +120,7 @@ def main(argv=None):
     elif command == 'review':
         result = github.prepare_review(args[0] if args else '', options.get('change'))
         if result.get('spec') and not options['prepare_only']:
-            result['workspace'] = start(dict(repo=result['repo'], spec=result['spec'], baseline=result['baseline'], mode='review', open=True, agent=options.get('agent') or 'auto', host=options.get('host'), agent_command=options.get('agent_command'), agent_session=options.get('agent_session')))
+            result['workspace'] = start(dict(repo=result['repo'], spec=result['spec'], baseline=result['baseline'], mode='review', open=True, agent=options.get('agent') or 'auto', host=options.get('host'), agent_command=options.get('agent_command'), agent_session=options.get('agent_session'), agent_host_command=options.get('agent_host_command')))
         output(result)
     elif command == 'review-bind':
         context = read_json(need('context')); value = spec()
