@@ -212,6 +212,11 @@ Workspace context and current human event (JSON):
                                        detail=detail or 'CLI exited without an error explanation.'))
                         except OSError: pass
                         reason = detail or 'CLI exited without an error explanation. Check its session ID, CLI sign-in, usage limits, and permissions.'
+                        if self.mode == 'codex' and 'already has an active writer' in detail:
+                            reason = ('Codex desktop or another Codex process still owns this chat. '
+                                      'Finishing its turn does not release the chat writer, so a separate CLI cannot resume it. '
+                                      'Use a custom adapter connected to the owning host, or release that host\'s chat connection before retrying. '
+                                      'NavoCode cannot take over its writer or create a replacement chat.')
                         raise ValueError(f'{self.mode} could not complete this message (exit {self.process.returncode}): {reason}\nDiagnostic: {diagnostic}')
                     stdout.seek(0)
                     output = stdout.read(100000).decode(errors='replace').strip()

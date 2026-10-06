@@ -33,6 +33,9 @@ if event['text'] == 'structured failure':
 if event['text'] == 'stderr failure':
     print('Session not found. API_KEY=' + os.environ.get('NAVOCODE_TEST_API_KEY', 'absent'), file=sys.stderr)
     sys.exit(2)
+if event['text'] == 'active writer':
+    print('Error: thread/resume failed: thread ' + identifier + ' already has an active writer (code -32600)', file=sys.stderr)
+    sys.exit(1)
 if event['text'] == 'empty reply': sys.exit(0)
 if event['text'] == 'block':
     (folder / 'fake-running').write_text(str(os.getpid()))
