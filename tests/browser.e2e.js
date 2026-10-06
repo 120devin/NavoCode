@@ -198,7 +198,7 @@ test('workspace chat resumes its original conversation after idle, displays fail
   await send('Recall original conversation');await page.locator('#messages').getByText('The original chat chose authorization as the policy owner.',{exact:true}).waitFor();
   assert.equal(session.agentSession,originalId);
   await send('fail once');await page.locator('#connection').getByText('Agent needs attention',{exact:true}).waitFor();
-  await page.locator('#messages').getByText('custom could not complete this message. The original chat may be busy or unavailable. Check its session ID, CLI sign-in, usage limits, and permissions, then retry.',{exact:true}).waitFor();
+  await page.locator('#messages').getByText(/custom could not complete this message \(exit 1\): Simulated transient CLI failure\./).waitFor();
   await page.getByRole('button',{name:'Retry message',exact:true}).click();
   await page.locator('#messages .message:not(.human)').filter({hasText:'Reply: fail once'}).waitFor();
   assert.equal(await page.locator('#messages .message.human').count(),4);

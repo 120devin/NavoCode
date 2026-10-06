@@ -7,7 +7,7 @@ import uuid
 from contextlib import contextmanager
 import os
 from pathlib import Path
-from .core import ROOT
+from .core import ROOT, write_json
 import shutil
 import signal
 import subprocess
@@ -16,6 +16,36 @@ import threading
 
 
 HOSTS = {'codex': ('codex',), 'claude': ('claude',), 'cursor': ('agent', 'cursor-agent'), 'copilot': ('copilot',)}
+
+
+def cli_failure_detail(stdout, stderr, env):
+    # Prefer structured host errors over progress messages or telemetry warnings.
+    stdout.seek(0)
+    details = []
+    for line in stdout:
+        if len(line) > 100000: continue
+        try: item = json.loads(line)
+        except (ValueError, UnicodeError): continue
+        if not isinstance(item, dict): continue
+        error = item.get('error')
+        if item.get('type') in ('error', 'turn.failed') or item.get('is_error'):
+            detail = error.get('message') if isinstance(error, dict) else error
+            detail = detail or item.get('message') or item.get('result')
+            if isinstance(detail, str): details.append(detail)
+    if details: detail = '\n'.join(dict.fromkeys(details))
+    else:
+        stderr.seek(0, os.SEEK_END)
+        stderr.seek(max(0, stderr.tell() - 8000))
+        detail = stderr.read().decode(errors='replace').strip()
+    detail = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', detail)
+    # Diagnostics never include the prompt, full command, or unredacted credentials.
+    for key, value in env.items():
+        if len(value) >= 6 and re.search(r'token|secret|password|api.?key|authorization', key, re.I):
+            detail = detail.replace(value, '[redacted]')
+    detail = re.sub(r'(?i)(bearer\s+)[A-Za-z0-9._~+/-]+=*', r'\1[redacted]', detail)
+    detail = re.sub(r'\bsk-[A-Za-z0-9_-]{8,}', '[redacted]', detail)
+    detail = re.sub(r'(?i)((?:access_token|refresh_token|api_key|password)\s*[=:]\s*)[^\s,;]+', r'\1[redacted]', detail)
+    return detail[-4000:]
 
 
 def detect_host(runtime_root):
@@ -174,7 +204,15 @@ Workspace context and current human event (JSON):
                 try:
                     self.process.communicate(stdin, timeout=self.timeout)
                     if self.process.returncode:
-                        raise ValueError(f'{self.mode} could not complete this message. The original chat may be busy or unavailable. Check its session ID, CLI sign-in, usage limits, and permissions, then retry.')
+                        detail = cli_failure_detail(stdout, stderr, env)
+                        diagnostic = folder_root / 'last-agent-error.json'
+                        try:
+                            write_json(diagnostic, dict(host=self.mode, sessionId=self.session_id,
+                                       eventId=event['id'], exitCode=self.process.returncode,
+                                       detail=detail or 'CLI exited without an error explanation.'))
+                        except OSError: pass
+                        reason = detail or 'CLI exited without an error explanation. Check its session ID, CLI sign-in, usage limits, and permissions.'
+                        raise ValueError(f'{self.mode} could not complete this message (exit {self.process.returncode}): {reason}\nDiagnostic: {diagnostic}')
                     stdout.seek(0)
                     output = stdout.read(100000).decode(errors='replace').strip()
                     if self.mode == 'codex':

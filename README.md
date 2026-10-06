@@ -162,6 +162,8 @@ Workspace chat defaults to `--agent auto`. The installed skill identifies its ho
 
 Choose a host explicitly with `--agent codex|claude|cursor|copilot`, or pass `--host HOST` to auto mode. Bind its exact existing chat ID with `--agent-session SESSION_ID` or `NAVOCODE_AGENT_SESSION`. In Codex, the current `CODEX_THREAD_ID` is detected automatically; other hosts must provide their actual session ID through the CLI or a host hook. Never guess an ID or use a session name/prefix. Install and sign in to the corresponding CLI first. Native adapters use documented noninteractive interfaces: [Codex](https://learn.chatgpt.com/docs/non-interactive-mode), [Claude Code](https://code.claude.com/docs/en/headless), [Cursor](https://cursor.com/docs/cli/headless), and [Copilot](https://docs.github.com/en/copilot/how-tos/copilot-cli/automate-copilot-cli/run-cli-programmatically).
 
+When a CLI exits unsuccessfully, the workspace displays its exit code and error explanation. A bounded, credential-redacted diagnostic is saved to `.navocode/local/last-agent-error.json` in the workspace repository, with the host, bound chat ID, and event ID. Structured host errors take precedence over telemetry warnings. This file excludes the prompt and command arguments. If no explanation is available, the UI says so instead of guessing that the chat is busy. Updating a source checkout does not refresh installed runtime copies: rerun `python3 bin/navocode.py install --host codex --project /path/to/your-project` (use the corresponding host), then restart the workspace.
+
 For any other assistant, supply a wrapper command:
 
 ```sh
