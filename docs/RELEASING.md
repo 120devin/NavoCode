@@ -6,7 +6,8 @@ publication are manual. Pushes and GitHub Release events do not publish packages
 ## First publication and trusted publishing
 
 The package has not yet been published. A maintainer with the intended npm
-account must make the first publication from the reviewed release checkout:
+account must enable two-factor authentication in their npm account settings,
+then make the first publication from the reviewed release checkout:
 
 ```sh
 npm ci
@@ -18,7 +19,10 @@ npm login
 npm publish --access public
 ```
 
-Complete npm's authentication and account verification prompts. Confirm the
+Complete npm's authentication and two-factor verification prompts. Login alone
+is insufficient for publication. If publishing fails with a two-factor
+authentication requirement, enable 2FA, log in again, and retry the same version;
+a rejected publication does not consume the version. Confirm the
 package name is still available before publishing. Do not publish from a
 checkout containing unintended edits to files included in the package.
 

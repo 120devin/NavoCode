@@ -12,7 +12,7 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/120devin/NavoCode.git"
+    "url": "git+https://github.com/120devin/NavoCode.git"
   },
   "files": [
     "bin",
