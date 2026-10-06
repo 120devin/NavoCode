@@ -12,6 +12,7 @@ from . import __version__, proposals, github
 from .core import ROOT, SCHEMA, read_json, write_json, assert_spec, draft, root_of, revision, head_of, source_digest, changed_files, inspect, readiness, brief, summary, git
 from .install import install, uninstall
 from .server import Workspace, session_request
+from .agent import resolve_agent
 
 HELP = '''NavoCode — architecture authoring and PR review
 
@@ -22,14 +23,16 @@ context --repo PATH [--base REF]
 schema
 validate --repo PATH --spec FILE [--ready]
 bind --repo PATH --spec FILE
-start --repo PATH --spec FILE [--mode author|review] [--baseline FILE] [--open]
-serve --repo PATH --spec FILE [--port PORT]
+start --repo PATH --spec FILE [--mode author|review] [--baseline FILE] [--agent auto|codex|claude|cursor|copilot|custom|manual] [--agent-session SESSION_ID] [--open]
+serve --repo PATH --spec FILE [--port PORT] [--agent auto|codex|claude|cursor|copilot|custom|manual]
 feedback --session FILE [--wait 25]
 ack --session FILE --event ID --message TEXT
 stop --session FILE
 brief --spec FILE
 summary --spec FILE
-review PR_URL [--change ID] [--prepare-only]
+review PR_URL [--change ID] [--agent HOST] [--agent-session SESSION_ID] [--prepare-only]
+Custom runner: start ... --agent custom --agent-command '["/path/to/runner", "arg"]'
+The custom runner reads a prompt from stdin and writes a final reply to stdout.
 review-bind --context FILE --spec FILE
 proposal create --spec FILE --baseline FILE --context FILE --rationale TEXT --out FILE
 proposal show --proposal FILE
@@ -49,14 +52,18 @@ def output(value):
 def start(options):
     session = Path(options['session']).resolve() if options.get('session') else Path(tempfile.mkdtemp(prefix='navocode-session-')) / 'session.json'
     if session.exists(): raise ValueError('Session file already exists; choose a new path')
-    args = [sys.executable, str(ROOT / 'bin/navocode.py'), 'serve', '--repo', str(root_of(options.get('repo') or '.')), '--spec', str(Path(options['spec']).resolve()), '--session', str(session), '--mode', options.get('mode') or 'author', '--port', options.get('port') or '0']
+    args = [sys.executable, str(ROOT / 'bin/navocode.py'), 'serve', '--repo', str(root_of(options.get('repo') or '.')), '--spec', str(Path(options['spec']).resolve()), '--session', str(session), '--mode', options.get('mode') or 'author', '--port', options.get('port') or '0', '--agent', options.get('agent') or 'auto']
+    if options.get('host'): args += ['--host', options['host']]
+    if options.get('agent_command'): args += ['--agent-command', options['agent_command']]
     if options.get('baseline'): args += ['--baseline', str(Path(options['baseline']).resolve())]
+    runner = resolve_agent(options.get('agent') or 'auto', options.get('host'), options.get('agent_command'), ROOT, options.get('agent_session'))
+    if runner: args += ['--agent-session', runner.session_id]
     child = subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     for _ in range(100):
         if session.exists():
             descriptor = read_json(session)
             if options.get('open'): webbrowser.open(descriptor['url'])
-            return dict(session=str(session), url=descriptor['url'], pid=descriptor['pid'], next=f'navocode feedback --session {session} --wait 25')
+            return dict(session=str(session), url=descriptor['url'], pid=descriptor['pid'], agentMode=descriptor['agentMode'], agentSession=descriptor.get('agentSession'), next='Workspace messages resume the bound assistant chat automatically.' if descriptor['agentMode'] != 'manual' else f'navocode feedback --session {session} --wait 25')
         if child.poll() is not None: break
         time.sleep(.05)
     raise ValueError('UI failed to start. Run serve in the foreground for diagnostics.')
@@ -64,7 +71,7 @@ def start(options):
 def main(argv=None):
     parser = argparse.ArgumentParser(description='NavoCode architecture workspace')
     parser.add_argument('command', nargs='?', default='help'); parser.add_argument('arguments', nargs='*')
-    keys = ('repo', 'id', 'title', 'intent', 'base', 'spec', 'mode', 'port', 'session', 'wait', 'event', 'message', 'baseline', 'context', 'out', 'rationale', 'proposal', 'host', 'project', 'pr-mode', 'change')
+    keys = ('repo', 'id', 'title', 'intent', 'base', 'spec', 'mode', 'port', 'session', 'wait', 'event', 'message', 'baseline', 'context', 'out', 'rationale', 'proposal', 'host', 'project', 'pr-mode', 'change', 'agent', 'agent-command', 'agent-session')
     for key in keys: parser.add_argument('--' + key)
     for key in ('open', 'ready', 'prepare-only'): parser.add_argument('--' + key, action='store_true')
     options = vars(parser.parse_args(argv)); command = options['command']; args = options['arguments']
@@ -98,7 +105,7 @@ def main(argv=None):
     elif command == 'serve':
         port = int(options.get('port') or 0)
         if not 0 <= port <= 65535: raise ValueError('Invalid port')
-        server = Workspace(need('spec'), repo(), options.get('mode') or 'author', port, options.get('baseline'))
+        server = Workspace(need('spec'), repo(), options.get('mode') or 'author', port, options.get('baseline'), agent=options.get('agent') or 'auto', host=options.get('host'), agent_command=options.get('agent_command'), agent_session=options.get('agent_session'))
         if options.get('session'): write_json(options['session'], server.descriptor())
         output(server.descriptor())
         if options['open']: webbrowser.open(server.descriptor()['url'])
@@ -110,7 +117,7 @@ def main(argv=None):
     elif command == 'review':
         result = github.prepare_review(args[0] if args else '', options.get('change'))
         if result.get('spec') and not options['prepare_only']:
-            result['workspace'] = start(dict(repo=result['repo'], spec=result['spec'], baseline=result['baseline'], mode='review', open=True))
+            result['workspace'] = start(dict(repo=result['repo'], spec=result['spec'], baseline=result['baseline'], mode='review', open=True, agent=options.get('agent') or 'auto', host=options.get('host'), agent_command=options.get('agent_command'), agent_session=options.get('agent_session')))
         output(result)
     elif command == 'review-bind':
         context = read_json(need('context')); value = spec()
@@ -147,7 +154,7 @@ def main(argv=None):
     elif command == 'demo':
         root = Path(tempfile.mkdtemp(prefix='navocode-demo-')); git(root, 'init', '-q'); git(root, '-c', 'user.name=NavoCode', '-c', 'user.email=demo@navocode.local', 'commit', '--allow-empty', '-qm', 'Demo baseline')
         value = read_json(ROOT / 'examples/billing.json'); value.update(baseRef=head_of(root), sourceDigest=source_digest(root)); path = root / '.navocode/changes/billing/spec.json'; write_json(path, value)
-        output(start(dict(options, repo=str(root), spec=str(path))))
+        output(start(dict(options, repo=str(root), spec=str(path), agent='manual')))
     else: raise ValueError('Unknown command: ' + command)
     return 0
 

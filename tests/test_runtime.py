@@ -204,7 +204,7 @@ class RuntimeTests(unittest.TestCase):
         path=self.repo/'.navocode/proposal.json';core.write_json(path,self.proposal());self.cli('adopt','--repo',self.repo,'--spec',self.path,'--proposal',path)
         adopted=core.read_json(self.path);self.assertTrue(all(not c['observed'] for c in adopted['components']));self.assertEqual(adopted['evidence'][0]['status'],'unverified')
     def test_detached_cli_transport_and_node_launcher(self):
-        result=json.loads(self.cli('start','--repo',self.repo,'--spec',self.path).stdout);self.addCleanup(lambda:session_request(result['session'],'/api/stop',{}))
+        result=json.loads(self.cli('start','--agent','manual','--repo',self.repo,'--spec',self.path).stdout);self.addCleanup(lambda:session_request(result['session'],'/api/stop',{}))
         event=self.feedback(result['session']);data=json.loads(self.cli('feedback','--session',result['session'],'--wait','0').stdout);self.assertEqual(data['events'][0]['id'],event['id'])
         if shutil.which('node'):
             text=subprocess.check_output(['node',str(ROOT/'bin/navocode.js'),'help'],text=True);self.assertIn('NavoCode 0.2.0',text)
@@ -225,7 +225,7 @@ class RuntimeTests(unittest.TestCase):
             stream=StringIO()
             with redirect_stdout(stream): cli.main(['review','https://github.com/owner/repo/pull/7'])
             self.assertEqual(json.loads(stream.getvalue())['workspace'],workspace)
-            self.assertEqual(start.call_args.args[0],dict(repo=str(self.repo),spec=str(self.path),baseline='baseline.json',mode='review',open=True))
+            self.assertEqual(start.call_args.args[0],dict(repo=str(self.repo),spec=str(self.path),baseline='baseline.json',mode='review',open=True,agent='auto',host=None,agent_command=None,agent_session=None))
             start.reset_mock()
             with redirect_stdout(StringIO()): cli.main(['review','https://github.com/owner/repo/pull/7','--prepare-only'])
             start.assert_not_called()

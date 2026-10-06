@@ -13,10 +13,10 @@ export function fixture(t) {
   const spec=JSON.parse(readFileSync(join(project,'examples/billing.json'),'utf8'));spec.baseRef=base;spec.sourceDigest=JSON.parse(cli(['context','--repo',repo])).sourceDigest;spec.groups[0].paths=['billing.js'];spec.unknowns=[];spec.components.forEach(c=>c.observed=c.intended);spec.decisions.forEach(d=>{d.status='accepted';d.provenance='human';});spec.evidence=[{id:'source-check',claim:'Delegation preserves fallback.',kind:'source',status:'supported',detail:'Fixture source inspection.',paths:['billing.js'],sourceDigest:spec.sourceDigest}];
   const path=join(repo,'.navocode/changes/delegated-billing/spec.json');jsonWrite(path,spec);return {repo,base,spec,path};
 }
-export async function startServer({specPath,repo,mode='author',sessionPath,baselinePath}) {
-  const args=['start','--spec',specPath,'--repo',repo,'--mode',mode,'--session',sessionPath];if(baselinePath)args.push('--baseline',baselinePath);cli(args);
+export async function startServer({specPath,repo,mode='author',sessionPath,baselinePath,agent='manual',agentCommand,agentSession}) {
+  const args=['start','--spec',specPath,'--repo',repo,'--mode',mode,'--session',sessionPath,'--agent',agent];if(baselinePath)args.push('--baseline',baselinePath);if(agentSession)args.push('--agent-session',agentSession);if(agentCommand)args.push('--agent-command',JSON.stringify(agentCommand));cli(args);
   const session=JSON.parse(readFileSync(sessionPath,'utf8'));
-  return {session,server:{closeAllConnections(){},close(){try{cli(['stop','--session',sessionPath]);}catch{}}}};
+  return {session,server:{closeAllConnections(){},close(){try{cli(['stop','--session',sessionPath,'--agent',agent]);}catch{}}}};
 }
 export async function sessionRequest(path,route,body) {
   const session=JSON.parse(readFileSync(path,'utf8'));
